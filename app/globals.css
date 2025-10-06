@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Updated theme to match sophisticated dark design inspiration */
+    --background: 240 5% 8%;
+    --foreground: 240 5% 98%;
+    --card: 240 5% 12%;
+    --card-foreground: 240 5% 95%;
+    --popover: 240 5% 12%;
+    --popover-foreground: 240 5% 95%;
+    --primary: 260 15% 65%;
+    --primary-foreground: 240 5% 98%;
+    --secondary: 240 5% 18%;
+    --secondary-foreground: 240 5% 95%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 5% 22%;
+    --accent-foreground: 240 5% 95%;
+    --destructive: 27 25% 58%;
+    --destructive-foreground: 240 5% 98%;
+    --border: 240 5% 22%;
+    --input: 240 5% 18%;
+    --ring: 260 15% 65%;
+    --chart-1: 260 15% 65%;
+    --chart-2: 200 12% 70%;
+    --chart-3: 300 18% 60%;
+    --chart-4: 160 10% 75%;
+    --chart-5: 120 8% 80%;
+    --radius: 0.75rem;
+    --sidebar: 240 5% 12%;
+    --sidebar-foreground: 240 5% 95%;
+    --sidebar-primary: 260 15% 65%;
+    --sidebar-primary-foreground: 240 5% 98%;
+    --sidebar-accent: 240 5% 18%;
+    --sidebar-accent-foreground: 240 5% 95%;
+    --sidebar-border: 240 5% 22%;
+    --sidebar-ring: 260 15% 65%;
+  }
+
+  .dark {
+    --background: 240 5% 8%;
+    --foreground: 240 5% 98%;
+    --card: 240 5% 12%;
+    --card-foreground: 240 5% 95%;
+    --popover: 240 5% 12%;
+    --popover-foreground: 240 5% 95%;
+    --primary: 260 15% 65%;
+    --primary-foreground: 240 5% 98%;
+    --secondary: 240 5% 18%;
+    --secondary-foreground: 240 5% 95%;
+    --muted: 240 5% 15%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 5% 22%;
+    --accent-foreground: 240 5% 95%;
+    --destructive: 27 25% 58%;
+    --destructive-foreground: 240 5% 98%;
+    --border: 240 5% 22%;
+    --input: 240 5% 18%;
+    --ring: 260 15% 65%;
+    --chart-1: 260 15% 65%;
+    --chart-2: 200 12% 70%;
+    --chart-3: 300 18% 60%;
+    --chart-4: 160 10% 75%;
+    --chart-5: 120 8% 80%;
+    --sidebar: 240 5% 12%;
+    --sidebar-foreground: 240 5% 95%;
+    --sidebar-primary: 260 15% 65%;
+    --sidebar-primary-foreground: 240 5% 98%;
+    --sidebar-accent: 240 5% 18%;
+    --sidebar-accent-foreground: 240 5% 95%;
+    --sidebar-border: 240 5% 22%;
+    --sidebar-ring: 260 15% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    background: linear-gradient(135deg, oklch(0.65 0.15 260), oklch(0.7 0.12 200));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .hero-gradient {
+    background: linear-gradient(135deg, oklch(0.08 0.01 240) 0%, oklch(0.12 0.02 240) 50%, oklch(0.08 0.01 240) 100%);
+  }
+}
