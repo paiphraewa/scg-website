@@ -1,8 +1,7 @@
 {
+  "/company-incorporation/page": "app/company-incorporation/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
   "/page": "app/page.js",
   "/client-register/page": "app/client-register/page.js",
-  "/company-incorporation/page": "app/company-incorporation/page.js",
-  "/login/page": "app/login/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/api/ip-address/route": "app/api/ip-address/route.js"
+  "/login/page": "app/login/page.js"
 }
