@@ -1,0 +1,161 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  clientOnboardings ClientOnboarding[]  // Replaced companyRegistrations
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model ClientOnboarding {
+  id                      String   @id @default(cuid())
+  
+  // Personal Information
+  gender                  String
+  phoneNumber             String
+  personalEmail           String
+  residentialAddress      String
+  nationality             String
+  passportNumber          String
+  passportExpiryDate      String
+  dateOfBirth             String
+  taxResidency            String
+  taxIdentificationNumber String
+  
+  // Project Information
+  projectName             String
+  projectEmail            String
+  
+  // KYC Documents (file paths or URLs)
+  passportCopy            String?
+  proofOfAddress          String?
+  bankStatement           String?
+  
+  status                  String   @default("PENDING")
+  userId                  String
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  companyIncorporations   CompanyIncorporation[]
+
+  @@map("client_onboardings")
+}
+
+model CompanyIncorporation {
+  id                  String   @id @default(cuid())
+  onboardingId        String   @unique
+  jurisdiction        String?
+  
+  // Item 1: Company Name
+  companyNames        Json
+  
+  // Item 2: Purpose of Company
+  purposeOfCompany    String?
+  
+  // Item 3: Geographic Profile
+  geographicProfile   String?
+  
+  // Item 4: Share Capital
+  authorizedShares    String?
+  sharesParValue      String?
+  currency           String?   @default("USD")
+  customShares       String?
+  customParValue     String?
+  complexStructureNotes String?
+  
+  // Item 5: Seals
+  orderSeal          Boolean  @default(true)
+  sealQuantity       Int      @default(1)
+  
+  // Item 6: Relevant Individuals
+  relevantIndividuals Json
+  
+  // Section 7: General Source of Funds
+  totalFundsAmount           String?
+  fundsCompositionDetails   String?
+  
+  // Section 8: Location of Registers and Financial Records
+  registersLocation         String?
+  registersMaintainedBy     String?
+  financialRecordsLocation  String?
+  financialRecordsMaintainedBy String?
+  
+  // Section 9: Declaration / Signatures
+  authorizedToInstruct      Boolean @default(false)
+  authorizedInstructorsDetails String?
+  pepDetailsAdditional      String?
+  completedByName           String?
+  signature                 String?
+  declarationDate          String?
+  
+  // New e-signature verification fields
+  signedAt                 DateTime?  // Timestamp when signed
+  ipAddress               String?    // IP address of signer
+  userAgent               String?    // Browser/user agent info
+  
+  status             String   @default("submitted")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  // Relations
+  onboarding ClientOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  
+  @@map("company_incorporations")
+}

@@ -1,9 +1,16 @@
+'use client'
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, TrendingUp } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 export function JurisdictionsGrid() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
   const jurisdictions = [
     {
       name: "British Virgin Islands",
@@ -72,6 +79,19 @@ export function JurisdictionsGrid() {
     },
   ]
 
+  const handleStartCompany = (jurisdictionCode: string) => {
+    if (status === "loading") return
+
+    if (!session) {
+      // User is not logged in - redirect to login with proper callback URL
+      const callbackUrl = `/client-register?jurisdiction=${jurisdictionCode}`
+      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
+    } else {
+      // User is logged in - redirect directly to client register form with jurisdiction
+      router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
+    }
+  }
+
   return (
     <section id="jurisdictions" className="py-24 bg-card/30">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -133,9 +153,13 @@ export function JurisdictionsGrid() {
                   ))}
                 </div>
 
-                <Button className="w-full py-2.5 text-sm mx-auto flex items-center justify-center
-                 bg-gray-600 hover:bg-gray-700 text-white rounded-md">
-                  Start {jurisdiction.code} Company
+                <Button 
+                  className="w-full py-2.5 text-sm mx-auto flex items-center justify-center
+                   bg-gray-600 hover:bg-gray-700 text-white rounded-md"
+                  onClick={() => handleStartCompany(jurisdiction.code)}
+                  disabled={status === "loading"}
+                >
+                  {status === "loading" ? "Loading..." : `Start ${jurisdiction.code} Company`}
                 </Button>
               </CardContent>
             </Card>

@@ -106,13 +106,13 @@ export function ContactSection() {
             {/* Contact Form */}
             <Card className="glass-effect">
               <CardHeader>
-                <CardTitle>Contact us</CardTitle>
+                <CardTitle className="text-xl">Contact us</CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
 
                 {/* First and Last Name*/}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     First and last name <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Full name" className="w-full" />
@@ -120,7 +120,7 @@ export function ContactSection() {
 
                 {/*Project Name */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     Project name <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Project name" className="w-full"/>
@@ -128,7 +128,7 @@ export function ContactSection() {
 
                 {/* Telegram */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     Telegram @ <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Telegram" className="w-full"/>
@@ -136,7 +136,7 @@ export function ContactSection() {
                 
                 {/* Email */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     Email <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Email" className="w-full"/>
@@ -144,7 +144,7 @@ export function ContactSection() {
 
                 {/* Link to pitchdeck or website */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     Link to pitchdeck or website <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Link" className="w-full"/>
@@ -152,7 +152,7 @@ export function ContactSection() {
 
                 {/* Assistance message */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     What would you like assistance from SCG with? <span className="text-red-500">*</span>
                   </label>
                   <Input placeholder="Message" className="w-full" />
@@ -160,7 +160,7 @@ export function ContactSection() {
 
                 {/* Additional information */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">
+                  <label className="text-lg font-medium">
                     Is there any further information that you would like to share?
                   </label>
                   <Input placeholder="Message" className="w-full" />

@@ -1,11 +1,8 @@
+// components/ui/input.tsx - FIXED VERSION
 import React from 'react';
 
-interface InputProps {
-  type?: string;
-  placeholder?: string;
-  className?: string;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  // This extends all native input props automatically
 }
 
 export function Input({ 
@@ -13,7 +10,12 @@ export function Input({
   placeholder = '', 
   className = '', 
   value,
-  onChange 
+  onChange,
+  name, // Added name attribute
+  id, // Added id attribute
+  required, // Added required attribute
+  disabled, // Added disabled attribute
+  ...props // This captures all other native input props
 }: InputProps) {
   return (
     <input
@@ -22,6 +24,11 @@ export function Input({
       className={`border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
       value={value}
       onChange={onChange}
+      name={name} // Crucial: Add name attribute
+      id={id} // Crucial: Add id attribute  
+      required={required}
+      disabled={disabled}
+      {...props} // Spread all other props
     />
   );
 }
