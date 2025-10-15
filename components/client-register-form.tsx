@@ -153,8 +153,13 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
         throw new Error(data.error || 'Failed to submit onboarding form')
       }
 
+      // ✅ CORRECTLY ACCESS onboardingId from the response
       const onboardingId = data.data.id
       console.log('Onboarding created with ID:', onboardingId)
+
+      if (!onboardingId) {
+        throw new Error('No onboarding ID received from server')
+      }
 
       // Then, upload files if any
       if (files.passportCopy || files.proofOfAddress || files.bankStatement) {
@@ -205,6 +210,8 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
 
       alert('Onboarding submitted successfully!')
       console.log('Redirecting to company incorporation form...')
+      
+      // ✅ REDIRECT TO COMPANY INCORPORATION WITH onboardingId (Step 6)
       router.push(`/company-incorporation?onboardingId=${onboardingId}&jurisdiction=${effectiveJurisdiction}`)
 
     } catch (error) {

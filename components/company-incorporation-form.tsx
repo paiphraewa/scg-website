@@ -50,6 +50,7 @@ interface RelevantIndividual {
 
 export function CompanyIncorporationForm({ onboardingId, jurisdiction }: CompanyIncorporationFormProps) {
   const [formData, setFormData] = useState({
+
     // Item 1: Company Name
     companyNames: {
       firstPreference: '',
@@ -109,10 +110,121 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isLoadingDraft, setIsLoadingDraft] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [hasAdditionalIndividuals, setHasAdditionalIndividuals] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Load draft data when component mounts
+// Load draft data when component mounts
+  useEffect(() => {
+    const loadDraft = async () => {
+      if (!onboardingId) return
+      
+      setIsLoadingDraft(true)
+      try {
+        console.log('🔄 Loading draft for:', onboardingId)
+        const response = await fetch(`/api/company-incorporation/draft/${onboardingId}`)
+        
+        if (response.ok) {
+          const draftData = await response.json()
+          console.log('📥 Draft data loaded:', draftData)
+          
+          if (draftData) {
+            // Properly set the form data with the loaded draft
+            setFormData(prev => ({
+              ...prev,
+              // JSON fields
+              companyNames: draftData.companyNames || prev.companyNames,
+              relevantIndividuals: draftData.relevantIndividuals || prev.relevantIndividuals,
+              sourceOfFunds: draftData.sourceOfFunds || prev.sourceOfFunds,
+              recordsLocation: draftData.recordsLocation || prev.recordsLocation,
+              declaration: draftData.declaration || prev.declaration,
+              // Individual fields
+              purposeOfCompany: draftData.purposeOfCompany || prev.purposeOfCompany,
+              geographicProfile: draftData.geographicProfile || prev.geographicProfile,
+              authorizedShares: draftData.authorizedShares || prev.authorizedShares,
+              sharesParValue: draftData.sharesParValue || prev.sharesParValue,
+              currency: draftData.currency || prev.currency,
+              customShares: draftData.customShares || prev.customShares,
+              customParValue: draftData.customParValue || prev.customParValue,
+              complexStructureNotes: draftData.complexStructureNotes || prev.complexStructureNotes,
+              orderSeal: draftData.orderSeal !== undefined ? draftData.orderSeal : prev.orderSeal,
+              sealQuantity: draftData.sealQuantity || prev.sealQuantity,
+            }))
+            
+            setSuccess('Draft loaded successfully!')
+            setTimeout(() => setSuccess(''), 3000)
+          }
+        } else {
+          const errorData = await response.json()
+          console.error('❌ Failed to load draft:', errorData)
+          // Start with empty form if draft loading fails
+        }
+      } catch (error) {
+        console.error('💥 Error loading draft:', error)
+        // Start with empty form if draft loading fails
+      } finally {
+        setIsLoadingDraft(false)
+      }
+    }
+
+    loadDraft()
+  }, [onboardingId])
+
+  // Save draft function
+  const saveDraft = async () => {
+    setIsSavingDraft(true)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/company-incorporation/draft', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          onboardingId,
+          jurisdiction,
+          status: 'draft',
+          ...formData
+        }),
+      })
+
+      if (response.ok) {
+        setSuccess('Draft saved successfully!')
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000)
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Failed to save draft')
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error)
+      setError('Error saving draft. Please try again.')
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
+  // Auto-save draft when form changes (optional)
+  useEffect(() => {
+    const autoSave = setTimeout(() => {
+      if (Object.values(formData).some(value => {
+        if (typeof value === 'object') {
+          return Object.values(value).some(subValue => subValue !== '')
+        }
+        return value !== ''
+      })) {
+        saveDraft()
+      }
+    }, 5000) // Auto-save after 5 seconds of inactivity
+
+    return () => clearTimeout(autoSave)
+  }, [formData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -266,6 +378,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
         body: JSON.stringify({
           onboardingId,
           jurisdiction,
+          status: 'submitted',
           ...formData
         }),
       })
@@ -287,7 +400,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     }
   }
 
-    // Add useEffect to capture verification data
+  // Add useEffect to capture verification data
   useEffect(() => {
     const captureVerificationData = async () => {
       if (formData.declaration.signature && !formData.declaration.signedAt) {
@@ -313,6 +426,19 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
 
   const jurisdictionName = getJurisdictionName(jurisdiction)
 
+  if (isLoadingDraft) {
+    return (
+      <Card className="max-w-6xl mx-auto">
+        <CardContent className="p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p>Loading your draft...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="max-w-6xl mx-auto">
       <CardHeader>
@@ -328,14 +454,20 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
               {error}
             </div>
           )}
+          
+          {success && (
+            <div className="bg-green-500/15 text-green-600 text-sm p-3 rounded-md">
+              {success}
+            </div>
+          )}
 
           {/* Item 1: Company Name */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">1. Company Name</h3>
             <p className="text-sm text-muted-foreground">
               Please list three names for the company in order of preference. We will use the first name that is approved. Please also
-              insert your desired ending which must be chosen from the word(s) “Limited”,” Corporation”,” Incorporated”,”Societe Anonyme”,
-              “Sociedad Anonima”; the abbreviations “Ltd”, “Corp”, “Inc”, “S.A.” or such other word(s) or abbreviations thereof.
+              insert your desired ending which must be chosen from the word(s) "Limited"," Corporation"," Incorporated","Societe Anonyme",
+              "Sociedad Anonima"; the abbreviations "Ltd", "Corp", "Inc", "S.A." or such other word(s) or abbreviations thereof.
             </p>
             
             <div className="space-y-3">
@@ -1181,14 +1313,31 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
             </div>
           </div>
 
-          <Button 
-            type="submit" 
-            className="w-full" 
-            disabled={isSubmitting}
-            size="lg"
-          >
-            {isSubmitting ? 'Submitting...' : 'Submit Company Incorporation Form'}
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-6 border-t">
+            <Button
+              type="button"
+              onClick={saveDraft}
+              disabled={isSavingDraft}
+              variant="outline"
+              className="flex-1"
+            >
+              {isSavingDraft ? 'Saving Draft...' : 'Save Draft'}
+            </Button>
+            
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1"
+              size="lg"
+            >
+              {isSubmitting ? 'Submitting...' : 'Submit Company Incorporation Form'}
+            </Button>
+          </div>
+
+          <div className="text-center text-sm text-muted-foreground">
+            <p>Your progress is automatically saved as you type.</p>
+          </div>
         </form>
       </CardContent>
     </Card>

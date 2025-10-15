@@ -103,58 +103,35 @@ model CompanyIncorporation {
   onboardingId        String   @unique
   jurisdiction        String?
   
-  // Item 1: Company Name
+  // JSON fields for form data
   companyNames        Json
+  relevantIndividuals Json
+  sourceOfFunds       Json     // NEW
+  recordsLocation     Json     // NEW
+  declaration         Json     // NEW
   
-  // Item 2: Purpose of Company
+  // Simple fields from form
   purposeOfCompany    String?
-  
-  // Item 3: Geographic Profile
   geographicProfile   String?
-  
-  // Item 4: Share Capital
   authorizedShares    String?
   sharesParValue      String?
   currency           String?   @default("USD")
   customShares       String?
   customParValue     String?
   complexStructureNotes String?
-  
-  // Item 5: Seals
   orderSeal          Boolean  @default(true)
-  sealQuantity       Int      @default(1)
+  sealQuantity       String   @default("1")
   
-  // Item 6: Relevant Individuals
-  relevantIndividuals Json
+  // Verification fields (keep as individual columns)
+  signedAt           DateTime?  // For querying/sorting by date
+  ipAddress          String?    // For security/audit purposes
+  userAgent          String?    // For debugging
   
-  // Section 7: General Source of Funds
-  totalFundsAmount           String?
-  fundsCompositionDetails   String?
+  status              String   @default("draft")
   
-  // Section 8: Location of Registers and Financial Records
-  registersLocation         String?
-  registersMaintainedBy     String?
-  financialRecordsLocation  String?
-  financialRecordsMaintainedBy String?
-  
-  // Section 9: Declaration / Signatures
-  authorizedToInstruct      Boolean @default(false)
-  authorizedInstructorsDetails String?
-  pepDetailsAdditional      String?
-  completedByName           String?
-  signature                 String?
-  declarationDate          String?
-  
-  // New e-signature verification fields
-  signedAt                 DateTime?  // Timestamp when signed
-  ipAddress               String?    // IP address of signer
-  userAgent               String?    // Browser/user agent info
-  
-  status             String   @default("submitted")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   
-  // Relations
   onboarding ClientOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
   
   @@map("company_incorporations")

@@ -79,16 +79,55 @@ export function JurisdictionsGrid() {
     },
   ]
 
-  const handleStartCompany = (jurisdictionCode: string) => {
+  const handleStartCompany = async (jurisdictionCode: string) => {
     if (status === "loading") return
 
     if (!session) {
-      // User is not logged in - redirect to login with proper callback URL
       const callbackUrl = `/client-register?jurisdiction=${jurisdictionCode}`
       router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
     } else {
-      // User is logged in - redirect directly to client register form with jurisdiction
-      router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
+      try {
+        console.log('🔍 Checking for existing records...')
+        
+        // Get user's onboarding records
+        const response = await fetch('/api/onboarding/user-onboarding')
+        
+        if (response.ok) {
+          const userOnboarding = await response.json()
+          console.log('📋 User onboarding records:', userOnboarding)
+          
+          // Check for different scenarios:
+          // 1. Has company incorporation draft for this jurisdiction
+          // 2. Has completed client onboarding but no company incorporation yet
+          const existingRecord = userOnboarding.find((onboarding: any) => 
+            onboarding.jurisdiction === jurisdictionCode
+          )
+          
+          if (existingRecord) {
+            console.log('📄 Found existing record:', existingRecord)
+            
+            if (existingRecord.hasCompanyDraft) {
+              // Has company incorporation draft - go to company form
+              console.log('✅ Has company draft, redirecting to company form')
+              router.push(`/company-incorporation?onboardingId=${existingRecord.id}&jurisdiction=${jurisdictionCode}`)
+              return
+            } else if (existingRecord.status === 'completed' || existingRecord.status === 'PENDING') {
+              // Client onboarding completed but no company incorporation yet
+              console.log('✅ Client onboarding completed, redirecting to company form')
+              router.push(`/company-incorporation?onboardingId=${existingRecord.id}&jurisdiction=${jurisdictionCode}`)
+              return
+            }
+          }
+        }
+        
+        // No existing record found - go to client registration
+        console.log('❌ No existing record found, proceeding to client registration')
+        router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
+        
+      } catch (error) {
+        console.error('💥 Error checking records:', error)
+        router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
+      }
     }
   }
 

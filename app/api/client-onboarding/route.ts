@@ -80,11 +80,15 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    // ✅ ENSURE onboardingId is properly returned
     return NextResponse.json(
       { 
         success: true, 
         message: 'Client onboarding submitted successfully',
-        data: clientOnboarding 
+        data: {
+          id: clientOnboarding.id, // This is the onboardingId
+          ...clientOnboarding
+        }
       },
       { status: 201 }
     )
