@@ -122,6 +122,111 @@ const countryCodes = [
   { code: '+692', country: 'MH', name: 'Marshall Islands', flag: '🇲🇭' },
 ]
 
+// Phone validation rules
+const phoneRules = {
+  'US': { code: '+1', length: 10 },
+  'CA': { code: '+1', length: 10 },
+  'GB': { code: '+44', length: 10 },
+  'HK': { code: '+852', length: 8 },
+  'AU': { code: '+61', length: 9 },
+  'NZ': { code: '+64', length: 8 },
+  'SG': { code: '+65', length: 8 },
+  'TH': { code: '+66', length: 9 },
+  'MY': { code: '+60', length: 9 },
+  'ID': { code: '+62', length: 10 },
+  'PH': { code: '+63', length: 10 },
+  'VN': { code: '+84', length: 9 },
+  'JP': { code: '+81', length: 10 },
+  'KR': { code: '+82', length: 9 },
+  'CN': { code: '+86', length: 11 },
+  'IN': { code: '+91', length: 10 },
+  'BD': { code: '+880', length: 10 },
+  'DE': { code: '+49', length: 10 },
+  'FR': { code: '+33', length: 9 },
+  'IT': { code: '+39', length: 10 },
+  'ES': { code: '+34', length: 9 },
+  'NL': { code: '+31', length: 9 },
+  'BE': { code: '+32', length: 9 },
+  'CH': { code: '+41', length: 9 },
+  'AT': { code: '+43', length: 10 },
+  'SE': { code: '+46', length: 9 },
+  'NO': { code: '+47', length: 8 },
+  'DK': { code: '+45', length: 8 },
+  'FI': { code: '+358', length: 9 },
+  'IE': { code: '+353', length: 9 },
+  'PT': { code: '+351', length: 9 },
+  'GR': { code: '+30', length: 10 },
+  'PL': { code: '+48', length: 9 },
+  'HU': { code: '+36', length: 9 },
+  'CZ': { code: '+420', length: 9 },
+  'RO': { code: '+40', length: 9 },
+  'RU': { code: '+7', length: 10 },
+  'UA': { code: '+380', length: 9 },
+  'TR': { code: '+90', length: 10 },
+  'EG': { code: '+20', length: 10 },
+  'ZA': { code: '+27', length: 9 },
+  'NG': { code: '+234', length: 10 },
+  'KE': { code: '+254', length: 9 },
+  'GH': { code: '+233', length: 9 },
+  'MA': { code: '+212', length: 9 },
+  'TN': { code: '+216', length: 8 },
+  'DZ': { code: '+213', length: 9 },
+  'ET': { code: '+251', length: 9 },
+  'TZ': { code: '+255', length: 9 },
+  'UG': { code: '+256', length: 9 },
+  'MX': { code: '+52', length: 10 },
+  'BR': { code: '+55', length: 11 },
+  'AR': { code: '+54', length: 10 },
+  'CL': { code: '+56', length: 9 },
+  'CO': { code: '+57', length: 10 },
+  'PE': { code: '+51', length: 9 },
+  'VE': { code: '+58', length: 10 },
+  'EC': { code: '+593', length: 9 },
+  'PY': { code: '+595', length: 9 },
+  'UY': { code: '+598', length: 8 },
+  'PA': { code: '+507', length: 8 },
+  'CR': { code: '+506', length: 8 },
+  'SV': { code: '+503', length: 8 },
+  'GT': { code: '+502', length: 8 },
+  'HN': { code: '+504', length: 8 },
+  'NI': { code: '+505', length: 8 },
+  'AE': { code: '+971', length: 9 },
+  'SA': { code: '+966', length: 9 },
+  'KW': { code: '+965', length: 8 },
+  'QA': { code: '+974', length: 8 },
+  'BH': { code: '+973', length: 8 },
+  'OM': { code: '+968', length: 8 },
+  'JO': { code: '+962', length: 9 },
+  'LB': { code: '+961', length: 8 },
+  'SY': { code: '+963', length: 9 },
+  'IQ': { code: '+964', length: 10 },
+  'IR': { code: '+98', length: 10 },
+  'IL': { code: '+972', length: 9 },
+  'PS': { code: '+970', length: 9 },
+  'LY': { code: '+218', length: 9 },
+  'SD': { code: '+249', length: 9 },
+  'SO': { code: '+252', length: 8 },
+  'DJ': { code: '+253', length: 8 },
+  'ER': { code: '+291', length: 7 },
+  'ZM': { code: '+260', length: 9 },
+  'ZW': { code: '+263', length: 9 },
+  'BW': { code: '+267', length: 8 },
+  'NA': { code: '+264', length: 9 },
+  'LS': { code: '+266', length: 8 },
+  'SZ': { code: '+268', length: 8 },
+  'MU': { code: '+230', length: 8 },
+  'MV': { code: '+960', length: 7 },
+  'TL': { code: '+670', length: 8 },
+  'PG': { code: '+675', length: 8 },
+  'SB': { code: '+677', length: 7 },
+  'FJ': { code: '+679', length: 7 },
+  'TO': { code: '+676', length: 7 },
+  'CK': { code: '+682', length: 5 },
+  'KI': { code: '+686', length: 8 },
+  'FM': { code: '+691', length: 7 },
+  'MH': { code: '+692', length: 7 },
+}
+
 interface LoginPageProps {
   searchParams: { [key: string]: string | string[] | undefined }
 }
@@ -131,11 +236,12 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
-  const [countryCode, setCountryCode] = useState('+852')
+  const [countryCode, setCountryCode] = useState('HK') // Default to Hong Kong
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [phoneError, setPhoneError] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   
@@ -154,7 +260,45 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const selectedCountry = countryCodes.find(country => country.code === countryCode)
+  const selectedCountry = countryCodes.find(country => country.country === countryCode)
+  const currentCountryRule = phoneRules[countryCode as keyof typeof phoneRules]
+
+  // Phone validation function
+  const validatePhone = (phoneNumber: string, country: string) => {
+    const rule = phoneRules[country as keyof typeof phoneRules]
+    if (!rule) return false
+    
+    const cleaned = phoneNumber.replace(/\D/g, '')
+    const expectedLength = rule.length
+    
+    return cleaned.length === expectedLength
+  }
+
+  // Handle phone number change
+  const handlePhoneChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '')
+    setPhone(cleaned)
+    
+    // Validate on change
+    if (cleaned && !validatePhone(cleaned, countryCode)) {
+      setPhoneError(`Phone number should be ${currentCountryRule?.length} digits for ${selectedCountry?.name}`)
+    } else {
+      setPhoneError('')
+    }
+  }
+
+  // Handle country change
+  const handleCountryChange = (newCountryCode: string) => {
+    setCountryCode(newCountryCode)
+    setPhone('') // Clear phone when country changes
+    setPhoneError('')
+    setIsDropdownOpen(false)
+  }
+
+  // Get full phone number with country code
+  const getFullPhoneNumber = () => {
+    return selectedCountry?.code + phone
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -202,8 +346,14 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
         return
       }
 
+      // Validate phone if provided
+      if (phone && !validatePhone(phone, countryCode)) {
+        setError(`Phone number should be ${currentCountryRule?.length} digits for ${selectedCountry?.name}`)
+        return
+      }
+
       // Format phone number with country code
-      const fullPhone = phone ? `${countryCode}${phone}` : undefined
+      const fullPhone = phone ? getFullPhoneNumber() : undefined
 
       // Call your registration API
       const response = await fetch('/api/auth/register', {
@@ -403,20 +553,20 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
                         </button>
                         
                         {isDropdownOpen && (
-                          <div className="absolute top-full left-0 mt-1 w-48 max-h-60 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-lg z-10">
+                          <div className="absolute top-full left-0 mt-1 w-64 max-h-60 overflow-y-auto bg-white border border-gray-300 rounded-md shadow-lg z-10">
                             {countryCodes.map((country) => (
                               <button
-                                key={country.code}
+                                key={country.country}
                                 type="button"
-                                onClick={() => {
-                                  setCountryCode(country.code)
-                                  setIsDropdownOpen(false)
-                                }}
+                                onClick={() => handleCountryChange(country.country)}
                                 className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-gray-100 first:rounded-t-md last:rounded-b-md"
                               >
                                 <span className="text-lg">{country.flag}</span>
                                 <span className="font-medium">{country.code}</span>
-                                <span className="text-sm text-gray-600">{country.name}</span>
+                                <span className="text-sm text-gray-600 flex-1">{country.name}</span>
+                                <span className="text-xs text-gray-500">
+                                  {phoneRules[country.country as keyof typeof phoneRules]?.length || '?'} digits
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -424,14 +574,29 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
                       </div>
                       
                       {/* Phone Number Input */}
-                      <Input
-                        id="register-phone"
-                        type="tel"
-                        placeholder="12345678"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-black"
-                      />
+                      <div className="flex-1 space-y-1">
+                        <Input
+                          id="register-phone"
+                          type="tel"
+                          placeholder={currentCountryRule ? `e.g., ${'0'.repeat(currentCountryRule.length)}` : 'Phone number'}
+                          value={phone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                        />
+                        {currentCountryRule && (
+                          <div className="text-xs text-gray-600">
+                            Format: {currentCountryRule.length} digits
+                          </div>
+                        )}
+                        {phoneError && (
+                          <div className="text-xs text-red-600">{phoneError}</div>
+                        )}
+                        {phone && !phoneError && (
+                          <div className="text-xs text-green-600">
+                            Full number: {getFullPhoneNumber()}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

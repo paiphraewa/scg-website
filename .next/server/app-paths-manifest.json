@@ -1,6 +1,4 @@
 {
-  "/company-incorporation/page": "app/company-incorporation/page.js",
   "/page": "app/page.js",
-  "/client-register/page": "app/client-register/page.js",
   "/login/page": "app/login/page.js"
 }
