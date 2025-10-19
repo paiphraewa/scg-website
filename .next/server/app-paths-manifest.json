@@ -1,9 +1,7 @@
 {
   "/page": "app/page.js",
-  "/client-register/page": "app/client-register/page.js",
   "/company-incorporation/page": "app/company-incorporation/page.js",
-  "/api/onboarding/user-onboarding/route": "app/api/onboarding/user-onboarding/route.js",
-  "/api/company-incorporation/draft/route": "app/api/company-incorporation/draft/route.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/api/company-incorporation/draft/[onboardingId]/route": "app/api/company-incorporation/draft/[onboardingId]/route.js"
+  "/login/page": "app/login/page.js",
+  "/client-register/page": "app/client-register/page.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
 }

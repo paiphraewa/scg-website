@@ -13,13 +13,12 @@ model User {
   email     String   @unique
   password  String
   name      String?
-  phone     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accounts          Account[]
   sessions          Session[]
-  clientOnboardings ClientOnboarding[]  // Replaced companyRegistrations
+  clientOnboardings ClientOnboarding[]
 
   @@map("users")
 }
@@ -106,9 +105,13 @@ model CompanyIncorporation {
   // JSON fields for form data
   companyNames        Json
   relevantIndividuals Json
-  sourceOfFunds       Json     // NEW
-  recordsLocation     Json     // NEW
-  declaration         Json     // NEW
+  sourceOfFunds       Json     
+  recordsLocation     Json     
+  declaration         Json     
+  requiresNomineeShareholder Boolean @default(false)
+  shareholders               Json
+  requiresNomineeDirector Boolean @default(false) 
+  directors               Json                    
   
   // Simple fields from form
   purposeOfCompany    String?
@@ -122,7 +125,13 @@ model CompanyIncorporation {
   orderSeal          Boolean  @default(true)
   sealQuantity       String   @default("1")
   
-  // Verification fields (keep as individual columns)
+  // Signature fields
+  signatureType       String?   // 'drawn' or 'uploaded'
+  signatureFilePath   String?   // Path to the uploaded signature file
+  signatureFileName   String?   // Original file name
+  completedByName     String?   // Person who completed the form
+  
+  // Verification fields
   signedAt           DateTime?  // For querying/sorting by date
   ipAddress          String?    // For security/audit purposes
   userAgent          String?    // For debugging

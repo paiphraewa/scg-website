@@ -1,4 +1,4 @@
-// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save/app/api/auth/[...nextauth]/route.ts
+// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save_v2/app/api/auth/[...nextauth]/route.ts
 import * as entry from '../../../../../../app/api/auth/[...nextauth]/route.js'
 import type { NextRequest } from 'next/server.js'
 

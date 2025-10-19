@@ -1,4 +1,4 @@
-// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save/app/layout.tsx
+// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save_v2/app/layout.tsx
 import * as entry from '../../../app/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

@@ -1,6 +1,7 @@
+// app/api/company-incorporation/draft/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import {prisma} from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,8 +21,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Extract verification fields to keep as individual columns
+    // Extract individual columns from form data
     const {
+      // Individual columns (will be stored separately)
+      signatureType,
+      signatureFilePath,
+      signatureFileName,
+      completedByName,
       signedAt,
       ipAddress, 
       userAgent,
@@ -30,8 +36,14 @@ export async function POST(request: NextRequest) {
     } = formData
 
     const prismaData = {
-      // All form data (except verification fields) as JSON
+      // All form data (except individual columns) as JSON
       ...formDataForJson,
+      
+      // Individual columns
+      ...(signatureType && { signatureType }),
+      ...(signatureFilePath && { signatureFilePath }),
+      ...(signatureFileName && { signatureFileName }),
+      ...(completedByName && { completedByName }),
       
       // Verification fields as individual columns
       signedAt: signedAt || null,
@@ -66,6 +78,40 @@ export async function POST(request: NextRequest) {
     console.error('Save draft error:', error)
     return NextResponse.json(
       { error: 'Failed to save draft' },
+      { status: 500 }
+    )
+  }
+}
+
+// ADD THE GET METHOD HERE - in the same file
+export async function GET(request: NextRequest) {
+  try {
+    const session = await auth()
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const onboardingId = searchParams.get('onboardingId')
+
+    if (!onboardingId) {
+      return NextResponse.json(
+        { error: 'onboardingId is required' },
+        { status: 400 }
+      )
+    }
+
+    const draft = await prisma.companyIncorporation.findUnique({
+      where: { onboardingId }
+    })
+
+    return NextResponse.json(draft || null)
+
+  } catch (error) {
+    console.error('Load draft error:', error)
+    return NextResponse.json(
+      { error: 'Failed to load draft' },
       { status: 500 }
     )
   }

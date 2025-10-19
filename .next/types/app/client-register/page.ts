@@ -1,4 +1,4 @@
-// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save/app/client-register/page.tsx
+// File: /Users/phraewaphuriyaphan/Desktop/Synergy_kyc_comreg_save_v2/app/client-register/page.tsx
 import * as entry from '../../../../app/client-register/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
