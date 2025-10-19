@@ -1,7 +1,1 @@
-{
-  "/page": "app/page.js",
-  "/company-incorporation/page": "app/company-incorporation/page.js",
-  "/login/page": "app/login/page.js",
-  "/client-register/page": "app/client-register/page.js",
-  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
-}
+{}
