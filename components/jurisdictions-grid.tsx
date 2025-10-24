@@ -7,6 +7,24 @@ import { Clock, TrendingUp } from "lucide-react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
+// Code (card) -> slug used in routes
+const codeToSlug: Record<string, 'bvi' | 'cayman' | 'panama' | 'hongkong' | 'singapore'> = {
+  BVI: 'bvi',
+  KY: 'cayman',
+  PA: 'panama',
+  HK: 'hongkong',
+  SG: 'singapore',
+}
+
+// Slug -> token stored/expected by your forms & DB
+const slugToToken: Record<string, 'BVI' | 'CAYMAN' | 'PANAMA' | 'HONGKONG' | 'SINGAPORE'> = {
+  bvi: 'BVI',
+  cayman: 'CAYMAN',
+  panama: 'PANAMA',
+  hongkong: 'HONGKONG',
+  singapore: 'SINGAPORE',
+}
+
 export function JurisdictionsGrid() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -79,55 +97,35 @@ export function JurisdictionsGrid() {
     },
   ]
 
+  // 🔎 Draft-aware Start handler:
+  // - If not logged in: send to login with callback to /incorporate/<slug>
+  // - If logged in: call lookup API; if draft exists → deep link; else → /incorporate/<slug> (resolver creates/chooses record)
   const handleStartCompany = async (jurisdictionCode: string) => {
-    if (status === "loading") return
+    if (status === 'loading') return
+
+    const slug = codeToSlug[jurisdictionCode] || 'bvi'
 
     if (!session) {
-      const callbackUrl = `/client-register?jurisdiction=${jurisdictionCode}`
+      const callbackUrl = `/incorporate/${slug}`
       router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`)
-    } else {
-      try {
-        console.log('🔍 Checking for existing records...')
-        
-        // Get user's onboarding records
-        const response = await fetch('/api/onboarding/user-onboarding')
-        
-        if (response.ok) {
-          const userOnboarding = await response.json()
-          console.log('📋 User onboarding records:', userOnboarding)
-          
-          // Check for different scenarios:
-          // 1. Has company incorporation draft for this jurisdiction
-          // 2. Has completed client onboarding but no company incorporation yet
-          const existingRecord = userOnboarding.find((onboarding: any) => 
-            onboarding.jurisdiction === jurisdictionCode
-          )
-          
-          if (existingRecord) {
-            console.log('📄 Found existing record:', existingRecord)
-            
-            if (existingRecord.hasCompanyDraft) {
-              // Has company incorporation draft - go to company form
-              console.log('✅ Has company draft, redirecting to company form')
-              router.push(`/company-incorporation?onboardingId=${existingRecord.id}&jurisdiction=${jurisdictionCode}`)
-              return
-            } else if (existingRecord.status === 'completed' || existingRecord.status === 'PENDING') {
-              // Client onboarding completed but no company incorporation yet
-              console.log('✅ Client onboarding completed, redirecting to company form')
-              router.push(`/company-incorporation?onboardingId=${existingRecord.id}&jurisdiction=${jurisdictionCode}`)
-              return
-            }
-          }
+      return
+    }
+
+    try {
+      const res = await fetch(`/api/incorporation/lookup?jurisdiction=${slug}`, { cache: 'no-store' })
+      if (res.ok) {
+        const info = await res.json()
+        if (info.found && info.status === 'draft' && info.onboardingId) {
+          const token = info.token || slugToToken[slug] || 'BVI'
+          router.push(`/company-incorporation?onboardingId=${info.onboardingId}&jurisdiction=${token}`)
+          return
         }
-        
-        // No existing record found - go to client registration
-        console.log('❌ No existing record found, proceeding to client registration')
-        router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
-        
-      } catch (error) {
-        console.error('💥 Error checking records:', error)
-        router.push(`/client-register?jurisdiction=${jurisdictionCode}`)
       }
+      // No draft or lookup failed → start via resolver
+      router.push(`/incorporate/${slug}`)
+    } catch (e) {
+      // Fallback
+      router.push(`/incorporate/${slug}`)
     }
   }
 
@@ -192,7 +190,8 @@ export function JurisdictionsGrid() {
                   ))}
                 </div>
 
-                <Button 
+                {/* Start (draft-aware) */}
+                <Button
                   className="w-full py-2.5 text-sm mx-auto flex items-center justify-center
                    bg-gray-600 hover:bg-gray-700 text-white rounded-md"
                   onClick={() => handleStartCompany(jurisdiction.code)}
@@ -200,6 +199,24 @@ export function JurisdictionsGrid() {
                 >
                   {status === "loading" ? "Loading..." : `Start ${jurisdiction.code} Company`}
                 </Button>
+
+                {/* Resume (logged-in only) */}
+                {session && (
+                  <form action="/resume" method="post">
+                    <input
+                      type="hidden"
+                      name="preferredJurisdiction"
+                      value={codeToSlug[jurisdiction.code] || 'bvi'}
+                    />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      className="w-full py-2.5 text-sm"
+                    >
+                      Resume {jurisdiction.code} Application
+                    </Button>
+                  </form>
+                )}
               </CardContent>
             </Card>
           ))}

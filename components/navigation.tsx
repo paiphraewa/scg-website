@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Menu, X, User, LogOut } from "lucide-react"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
+import { ResumeButton } from '@/components/resume-button'
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
@@ -137,6 +138,7 @@ export function Navigation() {
               <Button variant="outline" size="sm">
                 Book Free Call
               </Button>
+              <ResumeButton defaultJurisdiction="bvi" showPicker={false} />
               <DesktopAuthButtons />
             </div>
           </div>
@@ -186,6 +188,9 @@ export function Navigation() {
               <Button variant="outline" size="sm" className="w-full justify-start">
                 Book Free Call
               </Button>
+            <div className="px-3 py-2">
+              <ResumeButton defaultJurisdiction="bvi" showPicker={false} />
+            </div>
             </div>
             <MobileAuthButtons />
           </div>

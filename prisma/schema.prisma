@@ -20,6 +20,9 @@ model User {
   sessions          Session[]
   clientOnboardings ClientOnboarding[]
 
+  orders    Order[]    @relation("UserOrders")
+  prospects Prospect[] @relation("UserProspects")
+
   @@map("users")
 }
 
@@ -63,85 +66,133 @@ model VerificationToken {
 }
 
 model ClientOnboarding {
-  id                      String   @id @default(cuid())
-  
-  // Personal Information
-  gender                  String
-  phoneNumber             String
-  personalEmail           String
-  residentialAddress      String
-  nationality             String
-  passportNumber          String
-  passportExpiryDate      String
-  dateOfBirth             String
-  taxResidency            String
-  taxIdentificationNumber String
-  
-  // Project Information
-  projectName             String
-  projectEmail            String
-  
-  // KYC Documents (file paths or URLs)
-  passportCopy            String?
-  proofOfAddress          String?
-  bankStatement           String?
-  
-  status                  String   @default("PENDING")
-  userId                  String
-  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id String @id @default(cuid())
 
-  companyIncorporations   CompanyIncorporation[]
+  // Personal Information
+  gender                  String?
+  phoneNumber             String?
+  personalEmail           String?
+  residentialAddress      String?
+  nationality             String?
+  passportNumber          String?
+  passportExpiryDate      String?
+  dateOfBirth             String?
+  taxResidency            String?
+  taxIdentificationNumber String?
+
+  // Project Information
+  projectName  String?
+  projectEmail String?
+
+  // KYC Documents (file paths or URLs)
+  passportCopy   String?
+  proofOfAddress String?
+  bankStatement  String?
+
+  status    String   @default("PENDING")
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  companyIncorporations CompanyIncorporation[]
+
+  orders    Order[]    @relation("OnboardingOrders")
+  prospects Prospect[] @relation("OnboardingProspects")
 
   @@map("client_onboardings")
 }
 
 model CompanyIncorporation {
-  id                  String   @id @default(cuid())
-  onboardingId        String   @unique
-  jurisdiction        String?
-  
+  id           String  @id @default(cuid())
+  onboardingId String  @unique
+  jurisdiction String?
+
   // JSON fields for form data
-  companyNames        Json
-  relevantIndividuals Json
-  sourceOfFunds       Json     
-  recordsLocation     Json     
-  declaration         Json     
+  companyNames               Json
+  relevantIndividuals        Json
+  sourceOfFunds              Json
+  recordsLocation            Json
+  declaration                Json
   requiresNomineeShareholder Boolean @default(false)
   shareholders               Json
-  requiresNomineeDirector Boolean @default(false) 
-  directors               Json                    
-  
+  requiresNomineeDirector    Boolean @default(false)
+  directors                  Json
+
   // Simple fields from form
-  purposeOfCompany    String?
-  geographicProfile   String?
-  authorizedShares    String?
-  sharesParValue      String?
-  currency           String?   @default("USD")
-  customShares       String?
-  customParValue     String?
+  purposeOfCompany      String?
+  geographicProfile     String?
+  authorizedShares      String?
+  sharesParValue        String?
+  currency              String? @default("USD")
+  customShares          String?
+  customParValue        String?
   complexStructureNotes String?
-  orderSeal          Boolean  @default(true)
-  sealQuantity       String   @default("1")
-  
+  orderSeal             Boolean @default(true)
+  sealQuantity          String  @default("1")
+  needsRegisteredOffice   Boolean @default(false)
+  officeLocation          String?
+  registeredOfficeFeeHKD  Int     @default(0)
+
   // Signature fields
-  signatureType       String?   // 'drawn' or 'uploaded'
-  signatureFilePath   String?   // Path to the uploaded signature file
-  signatureFileName   String?   // Original file name
-  completedByName     String?   // Person who completed the form
-  
+  signatureType     String? // 'drawn' or 'uploaded'
+  signatureFilePath String? // Path to the uploaded signature file
+  signatureFileName String? // Original file name
+  completedByName   String? // Person who completed the form
+
   // Verification fields
-  signedAt           DateTime?  // For querying/sorting by date
-  ipAddress          String?    // For security/audit purposes
-  userAgent          String?    // For debugging
-  
-  status              String   @default("draft")
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  
+  signedAt  DateTime? // For querying/sorting by date
+  ipAddress String? // For security/audit purposes
+  userAgent String? // For debugging
+
+  status String @default("draft")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   onboarding ClientOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
-  
+
   @@map("company_incorporations")
+}
+
+model Order {
+  id              String    @id @default(cuid())
+  orderCode       String    @unique
+  userId          String
+  onboardingId    String
+  jurisdiction    String
+  status          String    @default("pending_payment")
+  firstNameLockAt DateTime?
+  lastEmailAt     DateTime?
+
+  user       User             @relation("UserOrders", fields: [userId], references: [id], onDelete: Cascade)
+  onboarding ClientOnboarding @relation("OnboardingOrders", fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([onboardingId, status])
+  @@map("orders")
+}
+
+model Prospect {
+  id             String  @id @default(cuid())
+  userId         String
+  onboardingId   String? // optional link (the user might not have an onboarding yet)
+  jurisdiction   String? // e.g. "BVI", "HK"
+  rawName        String // the original string the user typed
+  normalizedName String // normalized for dedup/search (uppercase, trim, no spaces etc.)
+  status         String  @default("new") // new | checking | reserved | rejected | completed
+  notes          String? // optional internal notes
+
+  // Relations
+  user       User              @relation("UserProspects", fields: [userId], references: [id], onDelete: Cascade)
+  onboarding ClientOnboarding? @relation("OnboardingProspects", fields: [onboardingId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, normalizedName, jurisdiction]) // avoid duplicates per user/jurisdiction
+  @@index([userId, jurisdiction])
+  @@map("prospects")
 }

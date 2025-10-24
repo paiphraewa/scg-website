@@ -1,4 +1,4 @@
-// app/api/company-incorporation/draft/route.ts
+// app/api/company-incorporation/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -56,16 +56,29 @@ export async function POST(request: NextRequest) {
       status = 'draft'
     } = formData
 
+    const needsRegisteredOffice = Boolean(sourceOfFunds?.needsRegisteredOffice)
+    const officeLocation = needsRegisteredOffice ? null : (sourceOfFunds?.officeLocation ?? null)
+    const registeredOfficeFeeHKD = needsRegisteredOffice ? 1500 : 0
+
+    const forwarded = request.headers.get('x-forwarded-for') || ''
+    const ipFromHeader = forwarded.split(',')[0]?.trim() || null
+    const uaFromHeader = request.headers.get('user-agent') || null
+
+    const coercedSignedAt =
+    signedAt ? new Date(signedAt) : (status === 'submitted' ? new Date() : null)
+
     // Prepare data for Prisma - same structure as main API but with draft status
     const prismaData: any = {
-      // Individual columns
-      ...(signatureType && { signatureType }),
-      ...(signatureFilePath && { signatureFilePath }),
-      ...(signatureFileName && { signatureFileName }),
-      ...(completedByName && { completedByName }),
-      ...(signedAt && { signedAt: new Date(signedAt) }),
-      ...(ipAddress && { ipAddress }),
-      ...(userAgent && { userAgent }),
+      // Individual columns (assign explicitly — never skip)
+      signatureType: signatureType ?? null,
+      signatureFilePath: signatureFilePath ?? null,
+      signatureFileName: signatureFileName ?? null,
+      completedByName: completedByName ?? null,
+
+      // ✅ verification (explicit, with server fallbacks)
+      signedAt: coercedSignedAt,                     // Date | null
+      ipAddress: (ipAddress ?? ipFromHeader) ?? null,
+      userAgent: (userAgent ?? uaFromHeader) ?? null,
       
       // JSON fields
       ...(companyNames && { companyNames }),
@@ -90,6 +103,10 @@ export async function POST(request: NextRequest) {
       ...(sealQuantity && { sealQuantity }),
       ...(requiresNomineeShareholder !== undefined && { requiresNomineeShareholder }),
       ...(requiresNomineeDirector !== undefined && { requiresNomineeDirector }),
+
+      needsRegisteredOffice,
+      officeLocation,
+      registeredOfficeFeeHKD,
       
       status,
       updatedAt: new Date()

@@ -10,6 +10,26 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
+import { countries } from '@/lib/countries'
+
+function SummaryRow({ label, value }: { label: string; value?: string | number | boolean }) {
+  return (
+    <div className="text-sm">
+      <span className="text-muted-foreground">{label}:</span>{' '}
+      <span className="font-medium">{(value ?? value === 0) ? String(value) : '—'}</span>
+    </div>
+  )
+}
+
+function toArray<T = any>(value: any): T[] {
+  if (Array.isArray(value)) return value
+  if (value && Array.isArray(value.list)) return value.list
+  return []
+}
+
+function orObject<T extends object>(value: any, fallback: T): T {
+  return (value && typeof value === 'object') ? value : fallback
+}
 
 interface CompanyIncorporationFormProps {
   onboardingId: string
@@ -92,6 +112,7 @@ const FORM_STEPS = [
   { id: 'source-funds', title: 'Source of Funds', required: true },
   { id: 'records', title: 'Records Location', required: true },
   { id: 'declaration', title: 'Declaration', required: true },
+  { id: 'review', title: 'Review & Submit', required: true },
 ]
 
 export function CompanyIncorporationForm({ onboardingId, jurisdiction }: CompanyIncorporationFormProps) {
@@ -120,7 +141,9 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     relevantIndividuals: [] as RelevantIndividual[],
     sourceOfFunds: {
       totalAmount: '',
-      compositionDetails: ''
+      compositionDetails: '',
+      needsRegisteredOffice: false,
+      officeLocation: '',
     },
     recordsLocation: {
       registersLocation: '',
@@ -172,27 +195,52 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
           if (draftData) {
             setFormData(prev => ({
               ...prev,
-              companyNames: draftData.companyNames || prev.companyNames,
-              relevantIndividuals: draftData.relevantIndividuals || prev.relevantIndividuals,
-              sourceOfFunds: draftData.sourceOfFunds || prev.sourceOfFunds,
-              recordsLocation: draftData.recordsLocation || prev.recordsLocation,
-              declaration: draftData.declaration || prev.declaration,
-              purposeOfCompany: draftData.purposeOfCompany || prev.purposeOfCompany,
-              geographicProfile: draftData.geographicProfile || prev.geographicProfile,
-              authorizedShares: draftData.authorizedShares || prev.authorizedShares,
-              sharesParValue: draftData.sharesParValue || prev.sharesParValue,
-              currency: draftData.currency || prev.currency,
-              customShares: draftData.customShares || prev.customShares,
-              customParValue: draftData.customParValue || prev.customParValue,
-              complexStructureNotes: draftData.complexStructureNotes || prev.complexStructureNotes,
-              orderSeal: draftData.orderSeal !== undefined ? draftData.orderSeal : prev.orderSeal,
-              sealQuantity: draftData.sealQuantity || prev.sealQuantity,
-              requiresNomineeShareholder: draftData.requiresNomineeShareholder || prev.requiresNomineeShareholder,
-              shareholders: draftData.shareholders || prev.shareholders,
-              requiresNomineeDirector: draftData.requiresNomineeDirector || prev.requiresNomineeDirector,
-              directors: draftData.directors || prev.directors,
+
+              // arrays → ensure arrays
+              shareholders: toArray(draftData.shareholders),
+              directors: toArray(draftData.directors),
+              relevantIndividuals: toArray(draftData.relevantIndividuals),
+
+              // objects → ensure shape
+              companyNames: orObject(draftData.companyNames, {
+                firstPreference: '', secondPreference: '', thirdPreference: '', chosenEnding: ''
+              }),
+              sourceOfFunds: orObject(draftData.sourceOfFunds, { totalAmount: '', compositionDetails: '', needsRegisteredOffice: false, officeLocation: '', }),
+              recordsLocation: orObject(draftData.recordsLocation, {
+                registersLocation: '', registersMaintainedBy: '',
+                financialRecordsLocation: '', financialRecordsMaintainedBy: ''
+              }),
+              declaration: orObject(draftData.declaration, {
+                authorizedToInstruct: false,
+                authorizedInstructorsDetails: '',
+                pepDetailsAdditional: '',
+                completedByName: '',
+                signature: '',
+                signatureType: null,
+                signatureFile: null,
+                signatureDataUrl: '',
+                signatureFileName: '',
+                declarationDate: '',
+                signedAt: '',
+                ipAddress: '',
+                userAgent: ''
+              }),
+
+              // simple fields with fallbacks
+              requiresNomineeShareholder: Boolean(draftData.requiresNomineeShareholder),
+              requiresNomineeDirector: Boolean(draftData.requiresNomineeDirector),
+              purposeOfCompany: draftData.purposeOfCompany ?? prev.purposeOfCompany,
+              geographicProfile: draftData.geographicProfile ?? prev.geographicProfile,
+              authorizedShares: draftData.authorizedShares ?? prev.authorizedShares,
+              sharesParValue: draftData.sharesParValue ?? prev.sharesParValue,
+              currency: draftData.currency ?? prev.currency,
+              customShares: draftData.customShares ?? prev.customShares,
+              customParValue: draftData.customParValue ?? prev.customParValue,
+              complexStructureNotes: draftData.complexStructureNotes ?? prev.complexStructureNotes,
+              orderSeal: draftData.orderSeal ?? prev.orderSeal,
+              sealQuantity: draftData.sealQuantity ?? prev.sealQuantity,
             }))
-            
+          
             // Load signature data from individual columns
             if (draftData.signatureType) {
               setFormData(prev => ({
@@ -224,28 +272,40 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     loadDraft()
   }, [onboardingId])
 
+
   // Save draft function - UPDATED
   const saveDraft = async () => {
     setIsSavingDraft(true)
     setError('')
     
     try {
+      const normalizedData = {
+        ...formData,
+        shareholders: Array.isArray(formData.shareholders)
+          ? formData.shareholders
+          : toArray(formData.shareholders),
+        directors: Array.isArray(formData.directors)
+          ? formData.directors
+          : toArray(formData.directors),
+        relevantIndividuals: Array.isArray(formData.relevantIndividuals)
+          ? formData.relevantIndividuals
+          : toArray(formData.relevantIndividuals),
+      }
+
       const draftData = {
         onboardingId,
         jurisdiction,
         status: 'draft',
-        
-        // Copy all form data
-        ...formData,
-        
-        // Extract signature and verification data for individual columns
+        ...normalizedData,
+
+        // keep your declaration column fields flattened like before 👇
         completedByName: formData.declaration.completedByName,
         signatureType: formData.declaration.signatureType,
         signatureFilePath: formData.declaration.signature,
         signatureFileName: formData.declaration.signatureFileName,
-        signedAt: formData.declaration.signedAt,
-        ipAddress: formData.declaration.ipAddress,
-        userAgent: formData.declaration.userAgent
+        signedAt: formData.declaration.signedAt || null,
+        ipAddress: formData.declaration.ipAddress || null,
+        userAgent: formData.declaration.userAgent || null,
       }
 
       const response = await fetch('/api/company-incorporation/draft', {
@@ -256,7 +316,20 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
         body: JSON.stringify(draftData),
       })
 
+      const json = await response.json().catch(() => null)
+
       if (response.ok) {
+      // ⬇️ NEW: copy server timestamp back into the form
+        if (json?.data?.signedAt) {
+          setFormData(prev => ({
+            ...prev,
+            declaration: {
+              ...prev.declaration,
+              signedAt: json.data.signedAt, // keep ISO; format on render
+            },
+        }))
+      }
+
         setSuccess('Draft saved successfully!')
         setTimeout(() => setSuccess(''), 3000)
       } else {
@@ -341,8 +414,12 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
                (formData.authorizedShares === 'custom' && formData.customShares && formData.customParValue)
       case 'seals':
         return true // Always valid since it has default values
-      case 'source-funds':
-        return formData.sourceOfFunds.totalAmount && formData.sourceOfFunds.compositionDetails
+      case 'source-funds': {
+        const { totalAmount, compositionDetails, needsRegisteredOffice, officeLocation } =
+          formData.sourceOfFunds
+        const hasBase = Boolean(totalAmount?.trim() && compositionDetails?.trim())
+        const hasOfficeOk = needsRegisteredOffice ? true : Boolean(officeLocation?.trim())
+        return hasBase && hasOfficeOk}
       case 'records':
         return formData.recordsLocation.registersLocation && 
                formData.recordsLocation.registersMaintainedBy &&
@@ -350,8 +427,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
                formData.recordsLocation.financialRecordsMaintainedBy
       case 'declaration':
         return formData.declaration.completedByName && 
-               formData.declaration.signature && 
-               formData.declaration.declarationDate
+               formData.declaration.signature
       default:
         return true
     }
@@ -686,68 +762,85 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setIsSubmitting(true)
+  const handleSubmit = async (source: 'button', e?: React.SyntheticEvent) => {
+    // Only allow if the call came from our Submit button
+    if (source !== 'button') return;
+    e?.preventDefault();
+
+    // Must be on Review step
+    const REVIEW_INDEX = FORM_STEPS.findIndex(s => s.id === 'review');
+    if (currentStep !== REVIEW_INDEX) return;
+
+    // Validate current step if required
+    if (FORM_STEPS[currentStep]?.required && !validateCurrentStep()) {
+      setError(`Please complete all required fields in ${FORM_STEPS[currentStep].title} section`);
+      return;
+    }
+
+    // Require signature
+    if (!formData.declaration.signatureType) {
+      setError('Please provide your signature using either drawing pad or file upload');
+      return;
+    }
+
+    if (isSubmitting) return;
+
+    setError('');
+    setIsSubmitting(true);
 
     try {
-      // Validate signature is provided
-      if (!formData.declaration.signatureType) {
-        setError('Please provide your signature using either drawing pad or file upload')
-        setIsSubmitting(false)
-        return
-      }
+      const normalizedData = {
+        ...formData,
+        shareholders: Array.isArray(formData.shareholders) ? formData.shareholders : toArray(formData.shareholders),
+        directors: Array.isArray(formData.directors) ? formData.directors : toArray(formData.directors),
+        relevantIndividuals: Array.isArray(formData.relevantIndividuals) ? formData.relevantIndividuals : toArray(formData.relevantIndividuals),
+      };
 
-      // Final validation
-      if (!validateCurrentStep() && FORM_STEPS[currentStep].required) {
-        setError(`Please complete all required fields in ${FORM_STEPS[currentStep].title} section`)
-        setIsSubmitting(false)
-        return
-      }
-
-      // Prepare data for submission - MATCHES THE UPDATED API ROUTE
       const submissionData = {
         onboardingId,
         jurisdiction,
         status: 'submitted',
-        
-        // Copy all form data
-        ...formData,
-        
-        // Extract signature and verification data for individual columns
+        ...normalizedData,
         completedByName: formData.declaration.completedByName,
         signatureType: formData.declaration.signatureType,
         signatureFilePath: formData.declaration.signature,
         signatureFileName: formData.declaration.signatureFileName,
         signedAt: formData.declaration.signedAt || new Date().toISOString(),
-        ipAddress: formData.declaration.ipAddress,
-        userAgent: formData.declaration.userAgent
-      }
+        ipAddress: formData.declaration.ipAddress || null,
+        userAgent: formData.declaration.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : null),
+      };
 
-      const response = await fetch('/api/company-incorporation', {
+      const res = await fetch('/api/company-incorporation', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(submissionData),
-      })
+      });
 
-      const data = await response.json()
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || 'Failed to submit company incorporation form');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to submit company incorporation form')
-      }
-
-      alert('Company incorporation form submitted successfully!')
-      router.push(`/payment?onboardingId=${onboardingId}&type=incorporation`)
-
-    } catch (error) {
-      console.error('Form submission error:', error)
-      setError(error instanceof Error ? error.message : 'Error submitting form. Please try again.')
+      alert('Company incorporation form submitted successfully!');
+      router.push(`/pricing?onboardingId=${onboardingId}`);
+    } catch (err: any) {
+      console.error('Form submission error:', err);
+      setError(err?.message || 'Error submitting form. Please try again.');
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
+  };
+
+
+
+  // --- Prevent auto-submit unless user is on Review step ---
+  const REVIEW_INDEX = FORM_STEPS.findIndex(s => s.id === 'review')
+
+  function onFormSubmit(e: React.FormEvent<HTMLFormElement>) {
+    const isReview = currentStep === REVIEW_INDEX
+    if (!isReview) {
+      e.preventDefault() // block submits on all earlier steps
+      return
+    }
+    handleSubmit(e as any) // only submit on the Review step
   }
 
   useEffect(() => {
@@ -767,6 +860,19 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
 
     captureVerificationData();
   }, [formData.declaration.signature]);
+
+  // Safe arrays for summary / mapping
+  const shareholdersArr = Array.isArray(formData.shareholders)
+    ? formData.shareholders
+    : toArray(formData.shareholders)
+
+  const directorsArr = Array.isArray(formData.directors)
+    ? formData.directors
+    : toArray(formData.directors)
+
+  const individualsArr = Array.isArray(formData.relevantIndividuals)
+    ? formData.relevantIndividuals
+    : toArray(formData.relevantIndividuals)
 
   // Calculate progress percentage
   const progress = ((currentStep + 1) / FORM_STEPS.length) * 100
@@ -825,7 +931,14 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
       </CardHeader>
       
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form
+          onSubmit={(e) => e.preventDefault()}  // ← block any implicit/natural submits
+          onKeyDown={(e) => {
+            const REVIEW_INDEX = FORM_STEPS.findIndex(s => s.id === 'review')
+            if (e.key === 'Enter' && currentStep !== REVIEW_INDEX) e.preventDefault()
+          }}
+          className="space-y-8"
+        >
           {error && (
             <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
               {error}
@@ -940,374 +1053,431 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
 
           {/* Step 3: Shareholder Information */}
           {currentStep === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Shareholder Information</h3>
-              
-              {/* Nominee Shareholder Question */}
-              <div className="border rounded-lg p-6">
-                <div className="space-y-4">
-                  <h4 className="font-medium">Do you require Nominee Shareholder?</h4>
-                  <p className="text-sm text-muted-foreground">
-                    If yes, we will provide nominee services for 1,500 HKD. If no, please provide shareholder details below.
-                  </p>
-                  
-                  <div className="flex space-x-6">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="nomineeYes"
-                        name="nomineeShareholder"
-                        checked={formData.requiresNomineeShareholder}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          requiresNomineeShareholder: true,
-                          shareholders: [] 
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <Label htmlFor="nomineeYes" className="text-sm font-medium leading-none">
-                        Yes (1,500 HKD)
-                      </Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="nomineeNo"
-                        name="nomineeShareholder"
-                        checked={!formData.requiresNomineeShareholder}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          requiresNomineeShareholder: false,
-                          shareholders: prev.shareholders.length === 0 ? [{
-                            id: 1,
-                            fullName: '',
-                            sharesPercentage: '',
-                            address: ''
-                          }] : prev.shareholders
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <Label htmlFor="nomineeNo" className="text-sm font-medium leading-none">
-                        No
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            (() => {
+              // Normalize once, reuse everywhere in this section
+              const shareholdersArr =
+                Array.isArray(formData.shareholders)
+                  ? formData.shareholders
+                  : toArray(formData.shareholders)
 
-              {/* Shareholder Details - Only show if they select "No" */}
-              {!formData.requiresNomineeShareholder && (
-                <>
-                  {formData.shareholders.map((shareholder, index) => (
-                    <div key={shareholder.id} className="border rounded-lg p-6 space-y-4">
-                      <div className="flex justify-between items-center">
-                        <h4 className="font-medium">Shareholder #{index + 1}</h4>
-                        {formData.shareholders.length > 1 && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeShareholder(index)}
-                          >
-                            Remove
-                          </Button>
-                        )}
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor={`shareholder-name-${index}`}>Full Name *</Label>
-                          <Input
-                            id={`shareholder-name-${index}`}
-                            value={shareholder.fullName}
-                            onChange={(e) => handleShareholderChange(index, 'fullName', e.target.value)}
-                            placeholder="Full legal name"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              const totalPct = shareholdersArr.reduce(
+                (t, s) => t + (parseFloat(s.sharesPercentage) || 0),
+                0
+              )
 
-                            required
-                          />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor={`shares-percentage-${index}`}>Shares Percentage *</Label>
-                          <Input
-                            id={`shares-percentage-${index}`}
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.01"
-                            value={shareholder.sharesPercentage}
-                            onChange={(e) => handleShareholderChange(index, 'sharesPercentage', e.target.value)}
-                            placeholder="e.g., 50.00"
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              return (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold">Shareholder Information</h3>
 
-                            required
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor={`shareholder-address-${index}`}>Address *</Label>
-                        <Textarea
-                          id={`shareholder-address-${index}`}
-                          value={shareholder.address}
-                          onChange={(e) => handleShareholderChange(index, 'address', e.target.value)}
-                          placeholder="Full residential address"
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                          rows={3}
-                          required
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addShareholder}
-                  >
-                    Add Another Shareholder
-                  </Button>
-
-                  {/* Total Percentage Validation */}
-                  {formData.shareholders.length > 0 && (
-                    <div className={`p-4 rounded-lg ${
-                      getTotalSharesPercentage() === 100 
-                        ? 'bg-green-50 border border-green-200' 
-                        : 'bg-yellow-50 border border-yellow-200'
-                    }`}>
-                      <p className={`text-sm ${
-                        getTotalSharesPercentage() === 100 ? 'text-green-800' : 'text-yellow-800'
-                      }`}>
-                        <strong>
-                          {getTotalSharesPercentage() === 100 
-                            ? '✓ Total shares percentage: 100% - Valid' 
-                            : `Total shares percentage: ${getTotalSharesPercentage()}% - Must equal 100% to proceed`}
-                        </strong>
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Step 4: Directors Information */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold">Director Information</h3>
-              
-              {/* Nominee Director Question */}
-              <div className="border rounded-lg p-6">
-                <div className="space-y-4">
-                  <h4 className="font-medium">Do you require Nominee Director?</h4>
-                  <p className="text-sm text-muted-foreground">
-                    If yes, we will provide nominee director services for 1,000 HKD. If no, please provide director details below.
-                  </p>
-                  
-                  <div className="flex space-x-6">
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="directorYes"
-                        name="nomineeDirector"
-                        checked={formData.requiresNomineeDirector}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          requiresNomineeDirector: true,
-                          directors: [] 
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <Label htmlFor="directorYes" className="text-sm font-medium leading-none">
-                        Yes (1,000 HKD)
-                      </Label>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="radio"
-                        id="directorNo"
-                        name="nomineeDirector"
-                        checked={!formData.requiresNomineeDirector}
-                        onChange={(e) => setFormData(prev => ({ 
-                          ...prev, 
-                          requiresNomineeDirector: false,
-                          directors: prev.directors.length === 0 ? [{
-                            id: 1,
-                            fullName: '',
-                            isShareholder: false,
-                            selectedShareholderId: null
-                          }] : prev.directors
-                        }))}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                      />
-                      <Label htmlFor="directorNo" className="text-sm font-medium leading-none">
-                        No
-                      </Label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Director Details - Only show if they select "No" */}
-              {!formData.requiresNomineeDirector && (
-                <>
-                  {/* Shareholder Selection Section */}
-                  {formData.shareholders.length > 0 && (
-                    <div className="border rounded-lg p-6">
-                      <h4 className="font-medium mb-4">Select shareholders who will also be directors:</h4>
-                      <div className="space-y-3">
-                        {formData.shareholders.map((shareholder) => {
-                          const isSelected = formData.directors.some(dir => 
-                            dir.selectedShareholderId === shareholder.id
-                          );
-                          
-                          return (
-                            <div key={shareholder.id} className="flex items-center space-x-3">
-                              <Checkbox
-                                id={`shareholder-director-${shareholder.id}`}
-                                checked={isSelected}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    // Add as director
-                                    const newDirector: Director = {
-                                      id: Date.now(), // Unique ID
-                                      fullName: shareholder.fullName,
-                                      isShareholder: true,
-                                      selectedShareholderId: shareholder.id
-                                    };
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      directors: [...prev.directors, newDirector]
-                                    }));
-                                  } else {
-                                    // Remove from directors
-                                    setFormData(prev => ({
-                                      ...prev,
-                                      directors: prev.directors.filter(dir => 
-                                        dir.selectedShareholderId !== shareholder.id
-                                      )
-                                    }));
-                                  }
-                                }}
-                              />
-                              <Label 
-                                htmlFor={`shareholder-director-${shareholder.id}`}
-                                className="text-sm font-normal cursor-pointer"
-                              >
-                                {shareholder.fullName} ({shareholder.sharesPercentage}% shares)
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-3">
-                        ✓ Selected shareholders will be automatically added as directors
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Additional Directors Section */}
+                  {/* Nominee Shareholder Question */}
                   <div className="border rounded-lg p-6">
-                    <h4 className="font-medium mb-4">Additional Directors (not shareholders)</h4>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Add directors who are not shareholders from the list above.
-                    </p>
-                    
-                    {formData.directors
-                      .filter(director => !director.isShareholder)
-                      .map((director, index) => (
-                        <div key={director.id} className="border rounded-lg p-4 space-y-3 mb-4">
+                    <div className="space-y-4">
+                      <h4 className="font-medium">Do you require Nominee Shareholder?</h4>
+                      <p className="text-sm text-muted-foreground">
+                        If yes, we will provide nominee services for 1,500 HKD. If no, please provide shareholder details below.
+                      </p>
+
+                      <div className="flex space-x-6">
+                        {/* Yes = use nominee, clear manual list */}
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="nomineeYes"
+                            name="nomineeShareholder"
+                            checked={formData.requiresNomineeShareholder}
+                            onChange={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                requiresNomineeShareholder: true,
+                                shareholders: [], // clear manual entries
+                              }))
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <Label htmlFor="nomineeYes" className="text-sm font-medium leading-none">
+                            Yes (1,500 HKD)
+                          </Label>
+                        </div>
+
+                        {/* No = manual shareholders; seed first row if empty */}
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="nomineeNo"
+                            name="nomineeShareholder"
+                            checked={!formData.requiresNomineeShareholder}
+                            onChange={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                requiresNomineeShareholder: false,
+                                shareholders:
+                                  Array.isArray(prev.shareholders) && prev.shareholders.length > 0
+                                    ? prev.shareholders
+                                    : [
+                                        {
+                                          id: 1,
+                                          fullName: '',
+                                          sharesPercentage: '',
+                                          address: '',
+                                        },
+                                      ],
+                              }))
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <Label htmlFor="nomineeNo" className="text-sm font-medium leading-none">
+                            No
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Shareholder Details - Only show if they select "No" */}
+                  {!formData.requiresNomineeShareholder && (
+                    <>
+                      {shareholdersArr.map((shareholder, index) => (
+                        <div key={shareholder?.id ?? index} className="border rounded-lg p-6 space-y-4">
                           <div className="flex justify-between items-center">
-                            <h5 className="font-medium">Additional Director</h5>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeDirector(formData.directors.findIndex(d => d.id === director.id))}
-                            >
-                              Remove
-                            </Button>
+                            <h4 className="font-medium">Shareholder #{index + 1}</h4>
+
+                            {shareholdersArr.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeShareholder(index)}
+                              >
+                                Remove
+                              </Button>
+                            )}
                           </div>
-                          
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`shareholder-name-${index}`}>Full Name *</Label>
+                              <Input
+                                id={`shareholder-name-${index}`}
+                                value={shareholder.fullName}
+                                onChange={(e) => handleShareholderChange(index, 'fullName', e.target.value)}
+                                placeholder="Full legal name"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                required
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`shares-percentage-${index}`}>Shares Percentage *</Label>
+                              <Input
+                                id={`shares-percentage-${index}`}
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.01"
+                                value={shareholder.sharesPercentage}
+                                onChange={(e) => handleShareholderChange(index, 'sharesPercentage', e.target.value)}
+                                placeholder="e.g., 50.00"
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                required
+                              />
+                            </div>
+                          </div>
+
                           <div className="space-y-2">
-                            <Label htmlFor={`director-name-${director.id}`}>Full Name *</Label>
-                            <Input
-                              id={`director-name-${director.id}`}
-                              value={director.fullName}
-                              onChange={(e) => {
-                                const directorIndex = formData.directors.findIndex(d => d.id === director.id);
-                                handleDirectorChange(directorIndex, 'fullName', e.target.value);
-                              }}
-                              placeholder="Full legal name"
+                            <Label htmlFor={`shareholder-address-${index}`}>Address *</Label>
+                            <Textarea
+                              id={`shareholder-address-${index}`}
+                              value={shareholder.address}
+                              onChange={(e) => handleShareholderChange(index, 'address', e.target.value)}
+                              placeholder="Full residential address"
                               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                              rows={3}
                               required
                             />
                           </div>
                         </div>
-                      ))
-                    }
-                    
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={addDirector}
-                    >
-                      + Add Additional Director
-                    </Button>
+                      ))}
+
+                      <Button type="button" variant="outline" onClick={addShareholder}>
+                        Add Another Shareholder
+                      </Button>
+
+                      {/* Total Percentage Validation */}
+                      {shareholdersArr.length > 0 && (
+                        <div
+                          className={`p-4 rounded-lg ${
+                            totalPct === 100 ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                          }`}
+                        >
+                          <p className={`text-sm ${totalPct === 100 ? 'text-green-800' : 'text-yellow-800'}`}>
+                            <strong>
+                              {totalPct === 100
+                                ? '✓ Total shares percentage: 100% - Valid'
+                                : `Total shares percentage: ${totalPct}% - Must equal 100% to proceed`}
+                            </strong>
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })()
+          )}
+
+
+          {/* Step 4: Directors Information */}
+          {currentStep === 3 && (
+            (() => {
+              // ✅ Normalize once, reuse
+              const shareholdersArr =
+                Array.isArray(formData.shareholders) ? formData.shareholders : toArray(formData.shareholders)
+
+              const directorsArr =
+                Array.isArray(formData.directors) ? formData.directors : toArray(formData.directors)
+
+              return (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold">Director Information</h3>
+
+                  {/* Nominee Director Question */}
+                  <div className="border rounded-lg p-6">
+                    <div className="space-y-4">
+                      <h4 className="font-medium">Do you require Nominee Director?</h4>
+                      <p className="text-sm text-muted-foreground">
+                        If yes, we will provide nominee director services for 1,000 HKD. If no, please provide director details below.
+                      </p>
+
+                      <div className="flex space-x-6">
+                        {/* Yes → clear manual directors */}
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="directorYes"
+                            name="nomineeDirector"
+                            checked={formData.requiresNomineeDirector}
+                            onChange={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                requiresNomineeDirector: true,
+                                directors: [], // clear when using nominee
+                              }))
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <Label htmlFor="directorYes" className="text-sm font-medium leading-none">
+                            Yes (1,000 HKD)
+                          </Label>
+                        </div>
+
+                        {/* No → seed one empty director if list is empty */}
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="radio"
+                            id="directorNo"
+                            name="nomineeDirector"
+                            checked={!formData.requiresNomineeDirector}
+                            onChange={() =>
+                              setFormData(prev => ({
+                                ...prev,
+                                requiresNomineeDirector: false,
+                                directors:
+                                  Array.isArray(prev.directors) && prev.directors.length > 0
+                                    ? prev.directors
+                                    : [
+                                        {
+                                          id: 1,
+                                          fullName: '',
+                                          isShareholder: false,
+                                          selectedShareholderId: null,
+                                        } as Director,
+                                      ],
+                              }))
+                            }
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                          />
+                          <Label htmlFor="directorNo" className="text-sm font-medium leading-none">
+                            No
+                          </Label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Summary */}
-                  {formData.directors.length > 0 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="font-medium text-blue-800 mb-2">Selected Directors:</h4>
-                      <ul className="text-sm text-blue-700 space-y-1">
-                        {formData.directors.map((director, index) => (
-                          <li key={director.id}>
-                            • {director.fullName} 
-                            {director.isShareholder && (
-                              <span className="text-green-600"> (Shareholder - {formData.shareholders.find(sh => sh.id === director.selectedShareholderId)?.sharesPercentage}% shares)</span>
-                            )}
-                            {!director.isShareholder && (
-                              <span className="text-gray-600"> (Director only)</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                      <p className="text-xs text-blue-600 mt-2">
-                        Total directors: {formData.directors.length}
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}         
+                  {/* Director Details - Only show if they select "No" */}
+                  {!formData.requiresNomineeDirector && (
+                    <>
+                      {/* Shareholder Selection Section */}
+                      {shareholdersArr.length > 0 && (
+                        <div className="border rounded-lg p-6">
+                          <h4 className="font-medium mb-4">Select shareholders who will also be directors:</h4>
+                          <div className="space-y-3">
+                            {shareholdersArr.map((shareholder) => {
+                              const isSelected = directorsArr.some(
+                                dir => dir.selectedShareholderId === shareholder.id
+                              )
 
-          {/* Step 5: Geographic Profile */}
+                              return (
+                                <div key={shareholder?.id ?? shareholder?.fullName ?? crypto.randomUUID()} className="flex items-center space-x-3">
+                                  <Checkbox
+                                    id={`shareholder-director-${shareholder?.id ?? 'x'}`}
+                                    checked={isSelected}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        // Add as director (shareholder→director)
+                                        const newDirector: Director = {
+                                          id: Date.now(),
+                                          fullName: shareholder.fullName,
+                                          isShareholder: true,
+                                          selectedShareholderId: shareholder.id,
+                                        }
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          directors: [...(Array.isArray(prev.directors) ? prev.directors : toArray(prev.directors)), newDirector],
+                                        }))
+                                      } else {
+                                        // Remove from directors by selectedShareholderId
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          directors: (Array.isArray(prev.directors) ? prev.directors : toArray(prev.directors))
+                                            .filter(dir => dir.selectedShareholderId !== shareholder.id),
+                                        }))
+                                      }
+                                    }}
+                                  />
+                                  <Label
+                                    htmlFor={`shareholder-director-${shareholder?.id ?? 'x'}`}
+                                    className="text-sm font-normal cursor-pointer"
+                                  >
+                                    {shareholder.fullName} ({shareholder.sharesPercentage}% shares)
+                                  </Label>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-3">
+                            ✓ Selected shareholders will be automatically added as directors
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Additional Directors Section (not shareholders) */}
+                      <div className="border rounded-lg p-6">
+                        <h4 className="font-medium mb-4">Additional Directors (not shareholders)</h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Add directors who are not shareholders from the list above.
+                        </p>
+
+                        {directorsArr
+                          .filter(director => !director.isShareholder)
+                          .map((director) => (
+                            <div key={director?.id ?? director?.fullName ?? crypto.randomUUID()} className="border rounded-lg p-4 space-y-3 mb-4">
+                              <div className="flex justify-between items-center">
+                                <h5 className="font-medium">Additional Director</h5>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      directors: (Array.isArray(prev.directors) ? prev.directors : toArray(prev.directors))
+                                        .filter(d => d.id !== director.id),
+                                    }))
+                                  }
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor={`director-name-${director?.id ?? 'x'}`}>Full Name *</Label>
+                                <Input
+                                  id={`director-name-${director?.id ?? 'x'}`}
+                                  value={director.fullName}
+                                  onChange={(e) => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      directors: (Array.isArray(prev.directors) ? prev.directors : toArray(prev.directors))
+                                        .map(d => (d.id === director.id ? { ...d, fullName: e.target.value } : d)),
+                                    }))
+                                  }}
+                                  placeholder="Full legal name"
+                                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                  required
+                                />
+                              </div>
+                            </div>
+                          ))}
+
+                        <Button type="button" variant="outline" onClick={addDirector}>
+                          + Add Additional Director
+                        </Button>
+                      </div>
+
+                      {/* Summary */}
+                      {directorsArr.length > 0 && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <h4 className="font-medium text-blue-800 mb-2">Selected Directors:</h4>
+                          <ul className="text-sm text-blue-700 space-y-1">
+                            {directorsArr.map((director, index) => (
+                              <li key={director?.id ?? index}>
+                                • {director.fullName}
+                                {director.isShareholder ? (
+                                  <span className="text-green-600">
+                                    {' '}
+                                    (Shareholder - {shareholdersArr.find(sh => sh.id === director.selectedShareholderId)?.sharesPercentage}% shares)
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-600"> (Director only)</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                          <p className="text-xs text-blue-600 mt-2">Total directors: {directorsArr.length}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })()
+          )}
+        
+          {/* Step 5: Geography (country selection) */}
           {currentStep === 4 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">3. Geographic Profile</h3>
-              <p className="text-sm text-muted-foreground">
-                Please detail all jurisdictions where the company intends to trade, hold assets or invest.
-              </p>
-              
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold">Geographic Profile</h3>
+
               <div className="space-y-2">
-                <Label htmlFor="geographicProfile">Trading and Investment Jurisdictions</Label>
-                <textarea
+                <Label htmlFor="geographicProfile">Country *</Label>
+                <select
                   id="geographicProfile"
                   name="geographicProfile"
                   value={formData.geographicProfile}
-                  onChange={handleChange}
-                  placeholder="List all countries/jurisdictions where the company will operate..."
-                  className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  rows={4}
-                />
+                  onChange={(e) =>
+                    setFormData(prev => ({ ...prev, geographicProfile: e.target.value }))
+                  }
+                  required
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm 
+                            ring-offset-background placeholder:text-muted-foreground 
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 
+                            focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">Select a country</option>
+                  {countries.map(c => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  We store the ISO country code (e.g., <code>US</code>, <code>HK</code>) in the field.
+                </p>
               </div>
             </div>
           )}
+
 
           {/* Step 6: Share Capital */}
           {currentStep === 5 && (
@@ -1758,7 +1928,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
               <p className="text-sm text-muted-foreground">
                 BVI legislation mandates that we fully understand the source of funds. Please advise the total amount of funds expected to be injected into the company by all UBO's and give a general synopsis in the freeform box below. Note that each UBO is required to complete and submit a "Supplementary Source of Funds and Tax Residence Declaration".
               </p>
-              
+
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="totalFundsAmount">Total amount of funds *</Label>
@@ -1771,7 +1941,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
                     required
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="fundsCompositionDetails">
                     Provide details of the overall composition of the funds to be injected into the company *
@@ -1786,7 +1956,83 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
                     required
                   />
                 </div>
-                
+
+                {/* Additional Question: Do you need a registered office? */}
+                <div className="space-y-3 mt-6 border-t pt-4">
+                  <Label className="font-medium">Do you need a registered office?</Label>
+                  <p className="text-sm text-muted-foreground">
+                    If yes, we will provide a registered office for <strong>HKD 1,500</strong>. If no, please provide your office address.
+                  </p>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="needsRegisteredOfficeYes"
+                      name="needsRegisteredOffice"
+                      checked={formData.sourceOfFunds.needsRegisteredOffice}
+                      onChange={() =>
+                        setFormData(prev => ({
+                          ...prev,
+                          sourceOfFunds: {
+                            ...prev.sourceOfFunds,
+                            needsRegisteredOffice: true,
+                            officeLocation: '',
+                          },
+                        }))
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label
+                      htmlFor="needsRegisteredOfficeYes"
+                      className="text-sm font-medium leading-none"
+                    >
+                      Yes (add HKD 1,500)
+                    </Label>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="needsRegisteredOfficeNo"
+                      name="needsRegisteredOffice"
+                      checked={!formData.sourceOfFunds.needsRegisteredOffice}
+                      onChange={() =>
+                        setFormData(prev => ({
+                          ...prev,
+                          sourceOfFunds: {
+                            ...prev.sourceOfFunds,
+                            needsRegisteredOffice: false,
+                          },
+                        }))
+                      }
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <Label
+                      htmlFor="needsRegisteredOfficeNo"
+                      className="text-sm font-medium leading-none"
+                    >
+                      No, I have my own office
+                    </Label>
+                  </div>
+                </div>
+
+
+                  {!formData.sourceOfFunds.needsRegisteredOffice && (
+                    <div className="space-y-2 mt-3">
+                      <Label htmlFor="officeLocation">Your Office Location *</Label>
+                      <Input
+                        id="officeLocation"
+                        value={formData.sourceOfFunds.officeLocation}
+                        onChange={(e) => handleSourceOfFundsChange('officeLocation', e.target.value)}
+                        placeholder="Enter your office address"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-blue-50 border border-blue-200 p-4">
                   <p className="text-sm text-blue-800">
                     <strong>Note: Each UBO is required to complete and submit a "Supplementary Source of Funds and Tax Residence Declaration" form separately.</strong>
@@ -1795,6 +2041,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
               </div>
             </div>
           )}
+
 
           {/* Step 10: Records Location */}
           {currentStep === 9 && (
@@ -2207,64 +2454,176 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="declarationDate">Date *</Label>
-                    <Input
-                      type="date"
-                      value={formData.declaration.declarationDate}
-                      onChange={(e) => handleDeclarationChange('declarationDate', e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      required
-                    />
-                  </div>
-
                   {/* Verification Data Display */}
                   {formData.declaration.signatureType && (
                     <div className="text-xs text-green-600 space-y-1 bg-green-50 p-3 rounded-lg">
                       <p>✓ Signature {formData.declaration.signatureType === 'drawn' ? 'drawn' : 'uploaded'} successfully</p>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <Label>Signed At</Label>
+                    <Input
+                      value={
+                        formData.declaration.signedAt
+                          ? new Date(formData.declaration.signedAt).toLocaleString()
+                          : '—'
+                      }
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      readOnly
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Navigation Buttons */}
+          {/* Step 12: Review & Submit */}
+          {currentStep === FORM_STEPS.findIndex(s => s.id === 'review') && (
+            <div className="space-y-8">
+              <h3 className="text-lg font-semibold">Review & Submit</h3>
+
+              {/* Company + Purpose */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <h4 className="font-medium">Company</h4>
+                  <SummaryRow label="1st preference" value={formData.companyNames.firstPreference} />
+                  <SummaryRow label="2nd preference" value={formData.companyNames.secondPreference} />
+                  <SummaryRow label="3rd preference" value={formData.companyNames.thirdPreference} />
+                  <SummaryRow label="Chosen ending" value={formData.companyNames.chosenEnding} />
+                  <SummaryRow label="Purpose of company" value={formData.purposeOfCompany} />
+                  <SummaryRow label="Geographic profile" value={formData.geographicProfile} />
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Share Capital</h4>
+                  <SummaryRow label="Authorized shares" value={formData.authorizedShares === 'custom' ? formData.customShares : formData.authorizedShares} />
+                  <SummaryRow label="Par value" value={formData.authorizedShares === 'custom' ? formData.customParValue : formData.sharesParValue} />
+                  <SummaryRow label="Currency" value={formData.currency} />
+                  <SummaryRow label="Order seal" value={formData.orderSeal ? 'Yes' : 'No'} />
+                  <SummaryRow label="Seal quantity" value={formData.sealQuantity} />
+                </div>
+              </div>
+
+              {/* Shareholders & Directors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <h4 className="font-medium">Shareholders {formData.requiresNomineeShareholder ? '(Nominee)' : ''}</h4>
+                  {formData.requiresNomineeShareholder ? (
+                    <p className="text-sm text-muted-foreground">Nominee shareholder requested.</p>
+                  ) : (
+                    <>
+                      {shareholdersArr.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No shareholders listed.</p>
+                      )}
+                      {shareholdersArr.map((sh, i) => (
+                        <div key={sh?.id ?? i} className="text-sm">
+                          • <span className="font-medium">{sh.fullName || 'Unnamed'}</span> — {sh.sharesPercentage || '0'}% — {sh.address || 'No address'}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Directors {formData.requiresNomineeDirector ? '(Nominee)' : ''}</h4>
+                  {formData.requiresNomineeDirector ? (
+                    <p className="text-sm text-muted-foreground">Nominee director requested.</p>
+                  ) : (
+                    <>
+                      {directorsArr.length === 0 && (
+                        <p className="text-sm text-muted-foreground">No directors listed.</p>
+                      )}
+                      {directorsArr.map((d, i) => (
+                        <div key={d?.id ?? i} className="text-sm">
+                          • <span className="font-medium">{d.fullName || 'Unnamed'}</span>
+                          {d.isShareholder && <span className="text-green-600"> (Shareholder)</span>}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Individuals */}
+              <div>
+                <h4 className="font-medium mb-2">Relevant Individuals</h4>
+                {individualsArr.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No additional individuals provided.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {individualsArr.map((ri, i) => (
+                      <div key={ri?.id ?? i} className="border rounded-md p-3 text-sm">
+                        <div className="font-medium">{ri.firstName} {ri.lastName}</div>
+                        <div className="text-muted-foreground">
+                          {ri.nationality || '—'} · {ri.passportNumber || '—'} · {ri.dateOfBirth || '—'}
+                        </div>
+                        <div>
+                          {ri.isUBO ? 'UBO · ' : ''}
+                          {ri.isShareholder ? 'Shareholder · ' : ''}
+                          {ri.isDirector ? 'Director · ' : ''}
+                          {ri.isPoliticallyExposed ? 'PEP' : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Source of funds & Records */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-3">
+                  <h4 className="font-medium">Source of Funds</h4>
+                  <SummaryRow label="Total amount" value={formData.sourceOfFunds.totalAmount} />
+                  <SummaryRow label="Composition details" value={formData.sourceOfFunds.compositionDetails} />
+                  <SummaryRow label="Registered office" value={formData.sourceOfFunds.needsRegisteredOffice ? 'Yes (HKD 1,500)' : 'No'}/>
+                  <SummaryRow label="Office location" value={formData.sourceOfFunds.needsRegisteredOffice ? '—' : (formData.sourceOfFunds.officeLocation || '—')}/>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Records Location</h4>
+                  <SummaryRow label="Registers location" value={formData.recordsLocation.registersLocation} />
+                  <SummaryRow label="Registers maintained by" value={formData.recordsLocation.registersMaintainedBy} />
+                  <SummaryRow label="Financial records location" value={formData.recordsLocation.financialRecordsLocation} />
+                  <SummaryRow label="Financial records maintained by" value={formData.recordsLocation.financialRecordsMaintainedBy} />
+                </div>
+              </div>
+
+              {/* Declaration (read-only) */}
+              <div className="space-y-3">
+                <h4 className="font-medium">Declaration</h4>
+                <SummaryRow label="Completed by" value={formData.declaration.completedByName} />
+                <SummaryRow label="Signature type" value={formData.declaration.signatureType || '—'} />
+                <SummaryRow label="Signature" value={formData.declaration.signature ? 'Provided' : '—'} />
+                <SummaryRow label="Signed at" value={formData.declaration.signedAt} />
+                <p className="text-xs text-muted-foreground">
+                  You can click Previous to change the signature or declaration details.
+                </p>
+              </div>
+            </div>
+          )}
+
+
+          {/* Navigation */}
           <div className="flex gap-4 pt-6 border-t">
-            <Button
-              type="button"
-              onClick={saveDraft}
-              disabled={isSavingDraft}
-              variant="outline"
-            >
-              {isSavingDraft ? 'Saving Draft...' : 'Save Draft'}
-            </Button>
-            
-            <div className="flex gap-4 ml-auto">
-              {currentStep > 0 && (
-                <Button
-                  type="button"
-                  onClick={prevStep}
-                  variant="outline"
-                >
-                  Previous
-                </Button>
-              )}
-              
+            {currentStep > 0 && (
+              <Button type="button" onClick={prevStep} variant="outline">
+                Previous
+              </Button>
+            )}
+
+            <div className="ml-auto flex gap-4">
               {currentStep < FORM_STEPS.length - 1 ? (
-                <Button
-                  type="button"
-                  onClick={nextStep}
-                >
+                <Button type="button" onClick={nextStep}>
                   Next
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
+                  onClick={(e) => handleSubmit('button', e)}
                   disabled={isSubmitting}
-                  size="lg"
                 >
-                  {isSubmitting ? 'Submitting...' : 'Submit Company Incorporation Form'}
+                  {isSubmitting ? 'Submitting...' : 'Submit Company Incorporation'}
                 </Button>
               )}
             </div>
