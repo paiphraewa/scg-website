@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma'
 import { ensurePendingOrder } from '@/lib/orders'
 import { upsertProspect } from '@/lib/prospects'
 
+export const runtime = 'nodejs'
+
 function asDateOrNull(v: unknown) {
   if (!v) return null
   if (v instanceof Date) return v
