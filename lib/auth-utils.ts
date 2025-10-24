@@ -33,12 +33,11 @@ export async function registerUser(name: string, email: string, password: string
         name,
         email,
         password: hashedPassword,
-        phone,
       }
     })
 
     console.log('User registered successfully:', user.id);
-    return { id: user.id, name: user.name, email: user.email, phone: user.phone}
+    return { id: user.id, name: user.name, email: user.email}
     
   } catch (error) {
     console.error('Registration error:', error);
