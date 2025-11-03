@@ -23,7 +23,7 @@ async function markPaid(onboardingId: string) {
   const cookieHeader = cookies().toString()
 
   // Call API
-  const res = await fetch(`${origin}/api/orders/mark-paid`, {
+  const res = await fetch(`${origin}/api/incorporation/mark-paid`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

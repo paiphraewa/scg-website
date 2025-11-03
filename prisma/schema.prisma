@@ -196,3 +196,17 @@ model Prospect {
   @@index([userId, jurisdiction])
   @@map("prospects")
 }
+
+model EmailVerification {
+  id         String   @id @default(cuid())
+  email      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int      @default(0)
+  consumedAt DateTime?
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  @@index([email])
+  @@index([expiresAt])
+}

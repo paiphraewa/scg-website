@@ -1,33 +1,29 @@
+// app/api/incorporation/mark-paid/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { markOrderPaidByOnboarding } from '@/lib/orders'
-import { prisma } from '@/lib/prisma'
+
+// Prisma needs Node runtime (not Edge)
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  // Require auth (so random folks can’t flip orders)
   const session = await auth()
-  if (!session?.user?.id) {
+  if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { onboardingId } = await req.json().catch(() => ({}))
+  const body = await req.json().catch(() => null)
+  const onboardingId = body?.onboardingId
   if (!onboardingId) {
     return NextResponse.json({ error: 'onboardingId is required' }, { status: 400 })
   }
 
-  // Optional: sanity check that this onboarding belongs to the current user
-  const onboarding = await prisma.clientOnboarding.findUnique({
-    where: { id: onboardingId },
-    select: { userId: true },
-  })
-  if (!onboarding || onboarding.userId !== session.user.id) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
+  // Try mark paid
   const updated = await markOrderPaidByOnboarding(onboardingId)
   if (!updated) {
-    return NextResponse.json({ error: 'No pending order to mark paid' }, { status: 404 })
+    return NextResponse.json({ error: 'No pending order to mark paid' }, { status: 400 })
   }
 
-  return NextResponse.json({ ok: true, order: updated })
+  return NextResponse.json({ ok: true, orderId: updated.id, status: updated.status })
 }

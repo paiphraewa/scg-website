@@ -1,7 +1,8 @@
 // components/company-incorporation-form.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -29,6 +30,10 @@ function toArray<T = any>(value: any): T[] {
 
 function orObject<T extends object>(value: any, fallback: T): T {
   return (value && typeof value === 'object') ? value : fallback
+}
+
+function norm(s: string) {
+  return (s || '').trim().toLowerCase()
 }
 
 interface CompanyIncorporationFormProps {
@@ -115,6 +120,103 @@ const FORM_STEPS = [
   { id: 'review', title: 'Review & Submit', required: true },
 ]
 
+function SearchableCountrySelect({
+  label,
+  value,
+  onChange,
+  disabled = false,
+  placeholder = "Select a country",
+  showPhoneCode = false,
+  hideLabel = false,
+  className = "",
+}: {
+  label: string
+  value: string
+  onChange: (newVal: string, meta?: { phoneCode?: string; phoneLength?: number }) => void
+  disabled?: boolean
+  placeholder?: string
+  showPhoneCode?: boolean
+  hideLabel?: boolean
+  className?: string
+}) {
+  const [query, setQuery] = useState("")
+  const [isOpen, setIsOpen] = useState(false)
+
+  const filtered = countries.filter((c) =>
+    c.name.toLowerCase().includes(query.toLowerCase()) ||
+    c.code.toLowerCase().includes(query.toLowerCase()) ||
+    (c.phoneCode && c.phoneCode.toLowerCase().includes(query.toLowerCase()))
+  )
+
+  const selected = showPhoneCode
+    ? countries.find((c) => c.phoneCode === value)
+    : countries.find((c) => c.name === value)
+
+  return (
+    <div className={`space-y-2 relative w-full ${className}`}>
+      {!hideLabel && <Label>{label}</Label>}
+
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen((o) => !o)}
+        disabled={disabled}
+        className="relative flex h-10 w-full items-center rounded-md border border-input bg-background 
+                   px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 
+                   focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className="flex-1 text-left truncate">
+          {selected
+            ? showPhoneCode
+              ? `${selected.name} (${selected.phoneCode})`
+              : selected.name
+            : placeholder}
+        </span>
+        <span className="pointer-events-none absolute right-3 text-xs text-muted-foreground">
+          ▼
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full border-b border-border bg-popover px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="Search..."
+          />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+            )}
+            {filtered.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => {
+                  if (showPhoneCode) {
+                    onChange(c.phoneCode, {
+                      phoneCode: c.phoneCode,
+                      phoneLength: c.phoneLength,
+                    })
+                  } else {
+                    onChange(c.name)
+                  }
+                  setIsOpen(false)
+                  setQuery("")
+                }}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                <span>{c.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CompanyIncorporationForm({ onboardingId, jurisdiction }: CompanyIncorporationFormProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState({
@@ -164,9 +266,85 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     declarationDate: '',
     signedAt: '',
     ipAddress: '',
-    userAgent: ''
-    }
+    userAgent: '',
+    },
+    signedAt: '',
+    onboardingId,
   })
+
+  const { status } = useSession()
+
+  const lastSentFirstPrefRef = useRef<string>('')
+
+  useEffect(() => {
+      // 1) Do nothing until the user is logged in
+      if (status !== 'authenticated') return
+
+      const firstPref = formData?.companyNames?.firstPreference || ''
+      const changed = norm(firstPref) !== norm(lastSentFirstPrefRef.current)
+
+      // 2) Must have an onboardingId (server validates and links the draft)
+      if (!onboardingId) {
+        if (firstPref.trim()) {
+          console.warn('[debounce] No onboardingId yet; skipping save for firstPref:', firstPref)
+        }
+        return
+      }
+
+      // 3) Don’t hit the API if empty or unchanged
+      if (!firstPref.trim() || !changed) return
+
+      const t = setTimeout(async () => {
+        try {
+          const res = await fetch('/api/company-incorporation/draft', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // ⬅️ send next-auth cookies with the request
+            body: JSON.stringify({
+              onboardingId,
+              status: 'draft',
+              jurisdiction: jurisdiction || 'BVI',
+              companyNames: {
+                ...formData.companyNames,
+                firstPreference: firstPref,
+              },
+            }),
+          })
+
+          // helpful diagnostics while you test
+          console.log('[debounce] status:', res.status, res.statusText)
+          console.log('[debounce] content-type:', res.headers.get('content-type') || 'n/a')
+
+          // some infra might still deliver HTML on error—defensively parse
+          let payload: any = null
+          const ct = res.headers.get('content-type') || ''
+          if (ct.includes('application/json')) {
+            payload = await res.json().catch(() => ({}))
+          } else {
+            const text = await res.text().catch(() => '')
+            console.log('[debounce] non-JSON response payload:', text.slice(0, 300))
+          }
+
+          if (!res.ok || !payload?.ok) {
+            console.error('[debounce] draft save failed. Payload:', payload)
+            return
+          }
+
+          console.log('[debounce] draft save OK:', payload)
+          lastSentFirstPrefRef.current = firstPref
+        } catch (err) {
+          console.error('[debounce] network error saving firstPref:', err)
+        }
+      }, 600)
+
+      return () => clearTimeout(t)
+    }, [
+      status,                                 
+      formData?.companyNames?.firstPreference,
+      onboardingId,
+      jurisdiction,
+    ])
+
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
@@ -272,12 +450,12 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     loadDraft()
   }, [onboardingId])
 
+  const lastSavedFirstPrefRef = useRef<string>('')
 
-  // Save draft function - UPDATED
   const saveDraft = async () => {
     setIsSavingDraft(true)
     setError('')
-    
+
     try {
       const normalizedData = {
         ...formData,
@@ -293,12 +471,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
       }
 
       const draftData = {
-        onboardingId,
-        jurisdiction,
-        status: 'draft',
         ...normalizedData,
-
-        // keep your declaration column fields flattened like before 👇
         completedByName: formData.declaration.completedByName,
         signatureType: formData.declaration.signatureType,
         signatureFilePath: formData.declaration.signature,
@@ -308,41 +481,80 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
         userAgent: formData.declaration.userAgent || null,
       }
 
+      if (!onboardingId || !jurisdiction) {
+        console.warn('Missing onboardingId or jurisdiction')
+        return
+      }
+
       const response = await fetch('/api/company-incorporation/draft', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(draftData),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          onboardingId,                    // 👈 from props
+          jurisdiction: jurisdiction || 'BVI',
+          status: 'draft',
+          ...normalizedData,
+          // flatten declaration so your API can store in columns
+          completedByName: formData.declaration.completedByName,
+          signatureType: formData.declaration.signatureType,
+          signatureFilePath: formData.declaration.signature,
+          signatureFileName: formData.declaration.signatureFileName,
+          signedAt: formData.declaration.signedAt || null,
+          ipAddress: formData.declaration.ipAddress || null,
+          userAgent: formData.declaration.userAgent || null,
+        }),
       })
 
       const json = await response.json().catch(() => null)
 
       if (response.ok) {
-      // ⬇️ NEW: copy server timestamp back into the form
         if (json?.data?.signedAt) {
           setFormData(prev => ({
             ...prev,
             declaration: {
               ...prev.declaration,
-              signedAt: json.data.signedAt, // keep ISO; format on render
+              signedAt: json.data.signedAt,
             },
-        }))
-      }
-
+          }))
+        }
         setSuccess('Draft saved successfully!')
         setTimeout(() => setSuccess(''), 3000)
       } else {
-        const errorData = await response.json()
-        setError(errorData.error || 'Failed to save draft')
+        console.error('Draft save failed:', json)
+        setError(json?.error || 'Failed to save draft')
       }
-    } catch (error) {
-      console.error('Error saving draft:', error)
+    } catch (err) {
+      console.error('Error saving draft:', err)
       setError('Error saving draft. Please try again.')
     } finally {
       setIsSavingDraft(false)
     }
   }
+
+
+
+  // --- Debounce-save when firstPreference changes ---
+  useEffect(() => {
+    const current = formData.companyNames?.firstPreference || ''
+    const prev = lastSavedFirstPrefRef.current
+
+    // Skip if empty or unchanged (case/space-insensitive)
+    if (!current.trim() || norm(current) === norm(prev)) return
+
+    // Debounce 600ms
+    const t = setTimeout(async () => {
+      try {
+        await saveDraft()
+        // on successful save, remember what we saved
+        lastSavedFirstPrefRef.current = current
+      } catch {
+        // ignore – saveDraft already handles UI errors
+      }
+    }, 600)
+
+    return () => clearTimeout(t)
+  }, [formData.companyNames.firstPreference])  // <-- ONLY firstPreference triggers this
+
   // Auto-save draft when form changes
   useEffect(() => {
     const autoSave = setTimeout(() => {
@@ -570,20 +782,47 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     setSignatureMethod(null)
   }
 
-  const saveDrawnSignature = () => {
-    if (!canvasRef || !signaturePreview) return
+  async function saveDrawnSignature() {
+    if (!canvasRef) return
 
-    setFormData(prev => ({
-      ...prev,
-      declaration: {
-        ...prev.declaration,
-        signatureType: 'drawn',
-        signatureDataUrl: signaturePreview,
-        signature: `Drawn signature - ${new Date().toISOString()}`,
-        signatureFileName: `signature_${Date.now()}.png`
-      }
-    }))
+    // 1. get dataURL from canvas
+    const dataUrl = canvasRef.toDataURL('image/png')
+
+    // 2. you MUST know the onboardingId here.
+    // if you keep it in state / props / URL, get it from there.
+    // For now let's assume you have it in formData or search params.
+    const onboardingId =
+      formData?.onboardingId ||
+      searchParams.get('onboardingId') ||
+      'temp-onboarding'
+
+    try {
+      // 3. upload to backend
+      const filePath = await uploadSignatureDataUrl(onboardingId, dataUrl)
+
+      // 4. save to your formData.declaration
+      setFormData(prev => ({
+        ...prev,
+        declaration: {
+          ...prev.declaration,
+          signatureType: 'drawn',
+          signature: filePath,           // <-- store usable URL
+          signatureDataUrl: dataUrl,     // optional: keep for preview
+          signatureFileName: filePath.split('/').pop() || '',
+        },
+        // also stamp signedAt if not already
+        signedAt: prev.signedAt || new Date().toISOString(),
+      }))
+
+      // 5. show preview in UI
+      setSignaturePreview(dataUrl)
+      setSignatureMethod(null)
+    } catch (err: any) {
+      console.error(err)
+      setError?.(err.message || 'Failed to save signature')
+    }
   }
+
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -707,6 +946,34 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
         [field]: value
       }
     }))
+  }
+
+  async function uploadSignatureDataUrl(onboardingId: string, dataUrl: string) {
+    // 1. convert dataURL → Blob
+    const res = await fetch(dataUrl)
+    const blob = await res.blob()
+
+    // 2. make File
+    const file = new File([blob], 'signature.png', { type: 'image/png' })
+
+    // 3. send to your existing /api/upload
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('documentType', 'signature')
+    fd.append('onboardingId', onboardingId)
+
+    const uploadRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: fd,
+    })
+
+    const json = await uploadRes.json()
+    if (!uploadRes.ok) {
+      throw new Error(json?.error || 'Failed to upload signature')
+    }
+
+    // json.filePath looks like: /api/uploads/<onboardingId>/signature_...png
+    return json.filePath as string
   }
 
   const addRelevantIndividual = () => {
@@ -1450,30 +1717,19 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
               <h3 className="text-lg font-semibold">Geographic Profile</h3>
 
               <div className="space-y-2">
-                <Label htmlFor="geographicProfile">Country *</Label>
-                <select
-                  id="geographicProfile"
-                  name="geographicProfile"
-                  value={formData.geographicProfile}
-                  onChange={(e) =>
-                    setFormData(prev => ({ ...prev, geographicProfile: e.target.value }))
-                  }
-                  required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm 
-                            ring-offset-background placeholder:text-muted-foreground 
-                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 
-                            focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">Select a country</option>
-                  {countries.map(c => (
-                    <option key={c.code} value={c.code}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  We store the ISO country code (e.g., <code>US</code>, <code>HK</code>) in the field.
-                </p>
+                <Label htmlFor="geographicProfile">Geographic Profile *</Label>
+                <SearchableCountrySelect
+                  label="Geographic Profile"
+                  hideLabel
+                  value={formData.geographicProfile || ""}
+                  onChange={(newVal) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      geographicProfile: newVal,
+                    }))
+                  }}
+                  placeholder="Select country / region"
+                />
               </div>
             </div>
           )}

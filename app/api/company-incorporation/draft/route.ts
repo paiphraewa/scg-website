@@ -6,6 +6,7 @@ import { ensurePendingOrder } from '@/lib/orders'
 import { upsertProspect } from '@/lib/prospects'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 function asDateOrNull(v: unknown) {
   if (!v) return null
@@ -13,13 +14,11 @@ function asDateOrNull(v: unknown) {
   const d = new Date(String(v))
   return isNaN(d.getTime()) ? null : d
 }
-
-function jsonOr(defaultVal: any) {
-  // Ensure we never write undefined into JSON columns
-  return (val: any) => (val === undefined ? defaultVal : val)
+function jsonOr<T>(defaultVal: T) {
+  return (val: any): T => (val === undefined ? defaultVal : val)
 }
-const jsonOrObj = jsonOr({})
-const jsonOrArr = jsonOr([])
+const jsonOrObj = jsonOr<Record<string, any>>({})
+const jsonOrArr = jsonOr<any[]>([])
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'onboardingId is required' }, { status: 400 })
     }
 
-    // ✅ Ensure the onboarding exists to avoid FK errors
+    // Ensure the onboarding exists (prevents FK errors)
     const onboarding = await prisma.clientOnboarding.findUnique({
       where: { id: onboardingId },
       select: { id: true, userId: true },
@@ -50,8 +49,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Pull out scalars that map to individual columns
+    // Pull out scalars / JSON
     const {
+      // signature / verification
       signatureType,
       signatureFilePath,
       signatureFileName,
@@ -59,17 +59,9 @@ export async function POST(request: NextRequest) {
       signedAt,
       ipAddress,
       userAgent,
+
+      // simple scalars
       jurisdiction,
-      // everything else (JSON)
-      companyNames,
-      relevantIndividuals,
-      sourceOfFunds,
-      recordsLocation,
-      declaration,
-      requiresNomineeShareholder,
-      shareholders,
-      requiresNomineeDirector,
-      directors,
       purposeOfCompany,
       geographicProfile,
       authorizedShares,
@@ -80,24 +72,50 @@ export async function POST(request: NextRequest) {
       complexStructureNotes,
       orderSeal,
       sealQuantity,
-      // ...ignore unknown keys safely
-      ...restIgnored
+      requiresNomineeShareholder,
+      requiresNomineeDirector,
+
+      // JSON-like
+      companyNames,
+      relevantIndividuals,
+      sourceOfFunds,
+      recordsLocation,
+      declaration,
+      shareholders,
+      directors,
+
+      // ignore unknown keys safely
+      ..._restIgnored
     } = formData
 
+    // derive runtime client info if not sent
+    const inferredIp =
+      ipAddress ||
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      null
+    const inferredUA = userAgent || request.headers.get('user-agent') || null
+
+    // server-side signedAt: if there’s a signature and no timestamp, stamp now
+    const signedAtServer =
+      asDateOrNull(signedAt) ?? (signatureType ? new Date() : null)
+
+    // Registered office fee logic
     const needsRegisteredOffice = Boolean(sourceOfFunds?.needsRegisteredOffice)
-    const officeLocation = needsRegisteredOffice ? null : (sourceOfFunds?.officeLocation ?? null)
+    const officeLocation = needsRegisteredOffice
+      ? null
+      : (sourceOfFunds?.officeLocation ?? null)
     const registeredOfficeFeeHKD = needsRegisteredOffice ? 1500 : 0
 
-    // ✅ Build safe data for Prisma (no undefined in JSON columns; correct Date type)
+    // Build safe data for Prisma (never write undefined into JSON columns)
     const prismaData = {
-      // JSON columns (always objects/arrays, never undefined)
+      // JSON columns
       companyNames: jsonOrObj(companyNames),
       relevantIndividuals: jsonOrArr(relevantIndividuals),
       sourceOfFunds: jsonOrObj(sourceOfFunds),
       recordsLocation: jsonOrObj(recordsLocation),
       declaration: jsonOrObj(declaration),
 
-      // Booleans/arrays
+      // arrays / booleans
       requiresNomineeShareholder: !!requiresNomineeShareholder,
       shareholders: jsonOrArr(shareholders),
       requiresNomineeDirector: !!requiresNomineeDirector,
@@ -115,6 +133,8 @@ export async function POST(request: NextRequest) {
       orderSeal: orderSeal ?? true,
       sealQuantity: sealQuantity ?? '1',
       jurisdiction: jurisdiction ?? 'BVI',
+
+      // Registered office derived fields
       needsRegisteredOffice,
       officeLocation,
       registeredOfficeFeeHKD,
@@ -124,9 +144,9 @@ export async function POST(request: NextRequest) {
       signatureType: signatureType ?? null,
       signatureFilePath: signatureFilePath ?? null,
       signatureFileName: signatureFileName ?? null,
-      signedAt: asDateOrNull(signedAt),           // ✅ convert string → Date or null
-      ipAddress: ipAddress ?? null,
-      userAgent: userAgent ?? null,
+      signedAt: signedAtServer,
+      ipAddress: inferredIp,
+      userAgent: inferredUA,
 
       status,
       updatedAt: new Date(),
@@ -141,41 +161,51 @@ export async function POST(request: NextRequest) {
         onboardingId: true,
         jurisdiction: true,
         companyNames: true,
-        signedAt: true, 
+        signedAt: true,
       },
     })
 
-    // ✅ Auto-save prospect (capture company name as Prospect for name-check workflow)
+    // ---- Prospect + email side-effects (non-fatal) ----
+    let didProspect = false
+    let didEmail = false
+
     try {
-      // Safely extract firstPreference from JSON
-      const firstPref =
-        (draft.companyNames as any)?.firstPreference ??
-        (typeof draft.companyNames === 'object' ? (draft.companyNames as any)?.firstPreference : null)
+      // Prefer body’s firstPref (latest), fallback to DB snapshot
+      const bodyFirstPref =
+        companyNames && typeof companyNames === 'object'
+          ? (companyNames as any)?.firstPreference
+          : undefined
+
+      const dbFirstPref =
+        draft.companyNames && typeof draft.companyNames === 'object'
+          ? (draft.companyNames as any)?.firstPreference
+          : undefined
+
+      const firstPref = (bodyFirstPref || dbFirstPref)?.toString()?.trim()
+
+      console.log('[draft] companyNames incoming =', companyNames)
+      console.log('[draft] companyNames stored   =', draft.companyNames)
+      console.log('[draft] extracted firstPref  =', firstPref)
 
       if (firstPref) {
+        // 1) Upsert Prospect
         await upsertProspect({
-          userId: onboarding.userId,                    // from the onboarding we fetched earlier
-          onboardingId: draft.onboardingId,            // link prospect to this onboarding when available
-          jurisdiction: draft.jurisdiction || 'BVI',   // or pass null if you prefer to keep it unset
+          userId: onboarding.userId,
+          onboardingId: draft.onboardingId,
+          jurisdiction: draft.jurisdiction || 'BVI',
           rawName: firstPref,
         })
-      }
-    } catch (prospectError) {
-      console.warn('[draft] upsertProspect warning:', prospectError)
-    }
+        didProspect = true
+        console.log('[draft] upsertProspect OK')
 
-    // Optional: create/ensure pending order once a name exists
-    try {
-      const firstPref = draft.companyNames && (draft.companyNames as any).firstPreference
-      if (firstPref) {
+        // 2) Ensure pending order + (simulate) email
         const appUrl =
           process.env.NEXT_PUBLIC_APP_URL ||
           process.env.NEXTAUTH_URL ||
           'http://localhost:3000'
         const pricingUrl = `${appUrl}/pricing?onboardingId=${draft.onboardingId}`
 
-        // This call safely no-ops email if RESEND_API_KEY is missing
-        await ensurePendingOrder({
+        const emailRes = await ensurePendingOrder({
           userId: onboarding.userId,
           userEmail: session.user.email!,
           onboardingId: draft.onboardingId,
@@ -183,25 +213,26 @@ export async function POST(request: NextRequest) {
           companyNames: draft.companyNames as any,
           pricingUrl,
         })
+
+        didEmail = true
+        console.log('[draft] ensurePendingOrder OK', emailRes)
+      } else {
+        console.log('[draft] firstPreference missing — Prospect & email skipped.')
       }
-    } catch (e) {
-      // Don’t fail the draft save if order/email logic fails
-      console.warn('[draft] ensurePendingOrder warning:', e)
+    } catch (sideFxErr) {
+      console.warn('[draft] side-effects warning (prospect/email):', sideFxErr)
     }
 
-    return NextResponse.json({ ok: true, data: draft })
+    return NextResponse.json({ ok: true, data: draft, didProspect, didEmail })
   } catch (err: any) {
-    // Try to make the error actionable
     const code = err?.code
     if (code === 'P2003') {
-      // FK violation (e.g., onboardingId not found)
       return NextResponse.json(
         { error: 'Foreign key constraint failed. Check onboardingId.' },
         { status: 400 }
       )
     }
     if (code === 'P2002') {
-      // Unique constraint
       return NextResponse.json(
         { error: 'Unique constraint failed.' },
         { status: 400 }
@@ -226,10 +257,10 @@ export async function GET(request: NextRequest) {
     }
 
     const draft = await prisma.companyIncorporation.findUnique({
-      where: { onboardingId }
+      where: { onboardingId },
     })
 
-    return NextResponse.json(draft || null)
+    return NextResponse.json({ ok: true, data: draft || null })
   } catch (error) {
     console.error('Load draft error:', error)
     return NextResponse.json({ error: 'Failed to load draft' }, { status: 500 })

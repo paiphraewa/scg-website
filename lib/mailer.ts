@@ -1,37 +1,70 @@
 // lib/mailer.ts
-type OrderEmailParams = {
-  to: string
-  from?: string
-  subject: string
-  html: string
+import { Resend } from 'resend'
+
+/**
+ * Email sending with safe console fallback.
+ * - Uses EMAIL_FROM if set (keeps consistent with other modules), then RESEND_FROM, then a default
+ * - If RESEND_API_KEY missing or sending fails, logs a full email preview to console and returns success
+ */
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY || ''
+const EMAIL_FROM = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'no-reply@example.test'
+const IS_SIMULATE = !RESEND_API_KEY
+
+let resend: Resend | null = null
+if (RESEND_API_KEY) {
+  resend = new Resend(RESEND_API_KEY)
 }
 
-// Simple switch: if RESEND_API_KEY + FROM are present, you'd plug Resend later.
-// For now, we simulate (log + return ok: true).
-export async function sendEmail(params: OrderEmailParams) {
-  const hasResend = !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM
+type EmailInput = {
+  to: string | string[]
+  subject: string
+  text?: string
+  html?: string
+  from?: string
+  // you can extend later with cc/bcc/replyTo if needed
+}
 
-  if (!hasResend) {
-    // SIMULATE: log the email payload for local testing
-    console.log('[simulate email] --------')
-    console.log('TO:', params.to)
-    console.log('FROM:', params.from || 'no-reply@example.com')
-    console.log('SUBJECT:', params.subject)
-    console.log('HTML:', params.html)
-    console.log('-------------------------')
-    return { ok: true, simulated: true }
+function logEmailPreview(tag: string, payload: Required<Pick<EmailInput, 'to' | 'subject'>> & Partial<EmailInput>) {
+  // Single place for console previews
+  console.log(`--- EMAIL (${tag}) ---`)
+  console.log('From:', payload.from || EMAIL_FROM)
+  console.log('To:', Array.isArray(payload.to) ? payload.to.join(', ') : payload.to)
+  console.log('Subject:', payload.subject)
+  if (payload.text) console.log('Text:', payload.text)
+  if (payload.html) console.log('HTML:', payload.html)
+  console.log('----------------------')
+}
+
+export async function sendEmail({ to, subject, text, html, from }: EmailInput) {
+  const payload = { to, subject, text, html, from }
+
+  // Guard: basic validation for "to"
+  if (!to || (Array.isArray(to) && to.length === 0)) {
+    console.warn('[sendEmail] Missing recipient "to" — skipping send.')
+    return { id: 'skipped-no-recipient', success: false }
   }
 
-  // REAL SEND (when you later have a domain + RESEND_API_KEY):
-  // const resend = new Resend(process.env.RESEND_API_KEY!)
-  // await resend.emails.send({
-  //   from: process.env.EMAIL_FROM!,
-  //   to: params.to,
-  //   subject: params.subject,
-  //   html: params.html,
-  // })
-  // return { ok: true, simulated: false }
+  // Simulate if no API key
+  if (IS_SIMULATE || !resend) {
+    logEmailPreview('console-fallback', payload)
+    return { id: 'console-fallback', success: true }
+  }
 
-  // For now, just simulate.
-  return { ok: true, simulated: true }
+  try {
+    const { data, error } = await resend.emails.send({
+      from: from || EMAIL_FROM,
+      to,
+      subject,
+      text,
+      html,
+    })
+    if (error) throw error
+    return { id: data?.id || 'resend', success: true }
+  } catch (err) {
+    // Don’t crash the app on email failure; print full preview and proceed
+    console.warn('[sendEmail] Resend failed, falling back to console preview:', err)
+    logEmailPreview('fallback-on-error', payload)
+    return { id: 'fallback-on-error', success: true }
+  }
 }

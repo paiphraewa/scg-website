@@ -1,62 +1,76 @@
 // lib/prospects.ts
 import { prisma } from '@/lib/prisma'
 
-/**
- * Normalize a company name for dedup/search.
- * - trims
- * - uppercases
- * - collapses multiple spaces to one
- * - strips punctuation except spaces/word chars
- */
-export function normalizeName(name: string) {
-  return name
-    .trim()
+export function normalizeCompanyName(raw: string): string {
+  if (!raw) return ''
+  // Example normalization: upper, trim, strip spaces & punctuation commonly found in names
+  return raw
     .toUpperCase()
-    .replace(/\s+/g, ' ')
-    .replace(/[^\w ]/g, '')
+    .trim()
+    .replace(/\s+/g, '')       // remove all whitespace
+    .replace(/[^\w]/g, '')     // remove non-alphanumerics/underscore
 }
 
-/**
- * Upsert a Prospect row keyed by (userId, normalizedName, jurisdiction).
- * If it already exists, update rawName / onboardingId; otherwise create it.
- */
-export async function upsertProspect(opts: {
+type UpsertProspectInput = {
   userId: string
   rawName: string
-  onboardingId?: string | null
   jurisdiction?: string | null
-}) {
-  const { userId, rawName, onboardingId = null, jurisdiction = null } = opts
+  onboardingId?: string | null
+  notes?: string | null
+}
 
-  // ignore empty
-  const trimmed = (rawName || '').trim()
-  if (!trimmed) return null
+export async function upsertProspect(input: UpsertProspectInput) {
+  const { userId, rawName, jurisdiction, onboardingId, notes } = input
+  const normalizedName = normalizeCompanyName(rawName)
+  const j = jurisdiction || null
 
-  const normalized = normalizeName(trimmed)
+  if (!userId || !normalizedName) return null
 
-  // Uses your Prisma composite UNIQUE constraint:
-  // @@unique([userId, normalizedName, jurisdiction]) in model Prospect
-  return prisma.prospect.upsert({
-    where: {
-      userId_normalizedName_jurisdiction: {
-        userId,
-        normalizedName: normalized,
-        jurisdiction, // can be null
+  try {
+    const prospect = await prisma.prospect.upsert({
+      where: {
+        // Prisma requires a named unique constraint; match your @@unique:
+        userId_normalizedName_jurisdiction: {
+          userId,
+          normalizedName,
+          jurisdiction: j ?? undefined, // undefined when unique field allows null; adjust if needed
+        },
       },
-    },
-    update: {
-      rawName: trimmed,
-      // only update onboardingId if provided (don’t force null)
-      ...(onboardingId !== null ? { onboardingId } : {}),
-      status: 'new',
-    },
-    create: {
-      userId,
-      onboardingId,
-      jurisdiction,
-      rawName: trimmed,
-      normalizedName: normalized,
-      status: 'new',
-    },
-  })
+      create: {
+        userId,
+        rawName: rawName.trim(),
+        normalizedName,
+        jurisdiction: j,
+        onboardingId: onboardingId ?? null,
+        status: 'new',
+        notes: notes ?? null,
+      },
+      update: {
+        rawName: rawName.trim(),
+        onboardingId: onboardingId ?? null,
+        jurisdiction: j,
+        notes: notes ?? undefined,
+      },
+    })
+    return prospect
+  } catch (err: any) {
+    // If the "undefined for null unique" is touchy, we can fallback to find + update:
+    if (err?.code === 'P2002') {
+      const found = await prisma.prospect.findFirst({
+        where: { userId, normalizedName, jurisdiction: j },
+      })
+      if (found) {
+        return prisma.prospect.update({
+          where: { id: found.id },
+          data: {
+            rawName: rawName.trim(),
+            onboardingId: onboardingId ?? null,
+            notes: notes ?? undefined,
+          },
+        })
+      }
+    }
+    console.warn('[upsertProspect] warning:', err)
+    return null
+  }
 }

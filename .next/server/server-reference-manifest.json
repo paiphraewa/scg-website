@@ -1,5 +1,22 @@
 {
-  "node": {},
+  "node": {
+    "55b33fa0e4fe0db92ce89d972d0a284dcaad5913": {
+      "workers": {
+        "app/pricing/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fphraewaphuriyaphan%2FDesktop%2FSynergy_updatedform%2Fapp%2Fpricing%2Fpage.tsx%22%2C%5B%22%24%24ACTION_1%22%2C%22%24%24ACTION_0%22%5D%5D%5D&__client_imported__=!"
+      },
+      "layer": {
+        "app/pricing/page": "rsc"
+      }
+    },
+    "ad3f9c994dbbbcd710e05bd4336adcd891ffd683": {
+      "workers": {
+        "app/pricing/page": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fphraewaphuriyaphan%2FDesktop%2FSynergy_updatedform%2Fapp%2Fpricing%2Fpage.tsx%22%2C%5B%22%24%24ACTION_1%22%2C%22%24%24ACTION_0%22%5D%5D%5D&__client_imported__=!"
+      },
+      "layer": {
+        "app/pricing/page": "rsc"
+      }
+    }
+  },
   "edge": {},
-  "encryptionKey": "FYV+zBOGmQbdvMO8P0sam1iJMqgdqiI1KZtLcA32Hic="
+  "encryptionKey": "GSfZxG4W9e8Td6BAC1eKx/MPacpbRlozQAiAQFWIIIU="
 }

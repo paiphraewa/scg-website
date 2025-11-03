@@ -17,11 +17,111 @@ interface ClientRegisterFormProps {
 }
 
 const FORM_STEPS = [
+  { id: 'kyc', title: 'KYC Documents', required: false },
   { id: 'personal', title: 'Personal Information', required: true },
   { id: 'project', title: 'Project Information', required: true },
-  { id: 'kyc', title: 'KYC Documents', required: false },
   { id: 'review', title: 'Review & Submit', required: true },
 ] as const
+
+function SearchableCountrySelect({
+  label,
+  value,
+  onChange,
+  disabled = false,
+  placeholder = "Select a country",
+  showPhoneCode = false,
+  hideLabel = false,
+  className = "",
+}: {
+  label: string
+  value: string
+  onChange: (newVal: string, meta?: { phoneCode?: string; phoneLength?: number }) => void
+  disabled?: boolean
+  placeholder?: string
+  showPhoneCode?: boolean
+  hideLabel?: boolean
+  className?: string 
+}) {
+  const [query, setQuery] = useState("")
+  const [isOpen, setIsOpen] = useState(false)
+
+  const filtered = countries.filter((c) =>
+    c.name.toLowerCase().includes(query.toLowerCase()) ||
+    c.code.toLowerCase().includes(query.toLowerCase()) ||
+    (c.phoneCode && c.phoneCode.toLowerCase().includes(query.toLowerCase()))
+  )
+
+  const selected = showPhoneCode
+    ? countries.find((c) => c.phoneCode === value)
+    : countries.find((c) => c.name === value)
+
+  return (
+    <div className="space-y-2 relative">
+      {/* show label only if not hidden */}
+      {!hideLabel && <Label>{label}</Label>}
+
+      {/* button / control */}
+      <button
+        type="button"
+        onClick={() => !disabled && setIsOpen((o) => !o)}
+        disabled={disabled}
+        className="relative flex h-10 w-full items-center rounded-md border border-input bg-background 
+                  px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 
+                  focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span className="flex-1 text-left truncate">
+          {selected
+            ? showPhoneCode
+              ? `${selected.name} (${selected.phoneCode})`
+              : selected.name
+            : placeholder}
+        </span>
+      </button>
+
+      {/* dropdown */}
+      {isOpen && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full border-b border-border bg-popover px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground outline-none"
+            placeholder="Search..."
+          />
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-sm text-muted-foreground">No matches</div>
+            )}
+            {filtered.map((c) => (
+              <button
+                key={c.code}
+                type="button"
+                onClick={() => {
+                  if (showPhoneCode) {
+                    onChange(c.phoneCode, {
+                      phoneCode: c.phoneCode,
+                      phoneLength: c.phoneLength,
+                    })
+                  } else {
+                    onChange(c.name)
+                  }
+                  setIsOpen(false)
+                  setQuery("")
+                }}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-accent hover:text-accent-foreground"
+              >
+                <span>{c.name}</span>
+                {showPhoneCode && (
+                  <span className="text-xs text-muted-foreground">{c.phoneCode}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
   const { data: session, status } = useSession()
@@ -41,7 +141,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
     gender: '',
     phoneNumber: '',
     countryCode: '',
-    expectedLength: 10,
+    expectedLength: 0,
     personalEmail: '',
     residentialAddress: '',
     nationality: '',
@@ -56,9 +156,9 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
     projectEmail: '',
   })
 
-  const phoneInvalid =
-  formData.expectedLength &&
-  String(formData.phoneNumber).replace(/\D/g, '').length !== formData.expectedLength
+  const isPersonalStep = FORM_STEPS[currentStep].id === 'personal'
+  const phoneDigits = String(formData.phoneNumber).replace(/\D/g, '')
+  const phoneInvalid = isPersonalStep && formData.expectedLength && phoneDigits.length !== formData.expectedLength
 
   // Files
   const [files, setFiles] = useState<{
@@ -74,6 +174,8 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
   // UI state
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+  // OCR loading state for the "Extract from passport" button
+  const [isOcrLoading, setIsOcrLoading] = useState(false)
 
   // Auth guard → redirect to login with callback
   useEffect(() => {
@@ -102,6 +204,39 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
     }
   }
 
+    // --- Passport OCR → prefill Personal Info ---
+  async function extractFromPassport() {
+    if (!files.passportCopy) return
+    setIsOcrLoading(true)
+    if (error) setError('') // clear old errors
+
+    try {
+      const fd = new FormData()
+      fd.append('file', files.passportCopy)
+
+      const res = await fetch('/api/ocr/passport', { method: 'POST', body: fd })
+      const data = await res.json()
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to extract details from passport.')
+      }
+
+      // Merge into fields you already have in formData
+      setFormData(prev => ({
+        ...prev,
+        nationality:        data.nationality        ?? prev.nationality,
+        passportNumber:     data.passportNumber     ?? prev.passportNumber,
+        passportExpiryDate: data.passportExpiryDate ?? prev.passportExpiryDate, // YYYY-MM-DD
+        dateOfBirth:        data.dateOfBirth        ?? prev.dateOfBirth,        // YYYY-MM-DD
+      }))
+    } catch (e: any) {
+      setError(e?.message || 'Could not read this passport. You can fill details manually.')
+    } finally {
+      setIsOcrLoading(false)
+    }
+  }
+
+
   // Upload helper
   const uploadFile = async (file: File, documentType: string, onboardingId: string) => {
     const fd = new FormData()
@@ -118,6 +253,13 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
   const validateStep = (stepIdx: number) => {
     const id = FORM_STEPS[stepIdx].id
     switch (id) {
+      case 'kyc': {
+        if (!files.passportCopy || !files.proofOfAddress || !files.bankStatement) {
+          setError('Please upload Passport Copy, Proof of Address, and Bank Statement to continue.')
+          return false
+        }
+        return true
+      }
       case 'personal': {
         const required = [
           'gender',
@@ -162,8 +304,6 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
         }
         return true
       }
-      case 'kyc':
-        return true
       case 'review':
         return true
       default:
@@ -332,7 +472,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
 
       <CardContent>
         <form
-          onSubmit={(e) => e.preventDefault()}  // 👈 block implicit submits
+          onSubmit={(e) => e.preventDefault()}  
           onKeyDown={(e) => {
             const REVIEW_INDEX = FORM_STEPS.findIndex(s => s.id === 'review')
             if (e.key === 'Enter' && currentStep !== REVIEW_INDEX) e.preventDefault()
@@ -345,8 +485,79 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
             </div>
           )}
 
-          {/* Step 1: Personal */}
+          {/* Step 1: KYC */}
           {currentStep === 0 && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold">KYC Documents</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload certified/notarised copies (dated within 3 months). We can help with certification if needed.
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="passportCopy">01. Passport Copy</Label>
+                <input
+                  id="passportCopy"
+                  name="passportCopy"
+                  type="file"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.passportCopy && (
+                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.passportCopy.name}</p>
+                )}
+                <div className="flex items-center gap-2 mt-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!files.passportCopy || isOcrLoading || isSubmitting}
+                    onClick={extractFromPassport}
+                  >
+                    {isOcrLoading ? 'Reading passport…' : 'Use this passport to prefill my details'}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    We’ll prefill your personal info. You can edit anything after.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="proofOfAddress">02. Proof of Address</Label>
+                <input
+                  id="proofOfAddress"
+                  name="proofOfAddress"
+                  type="file"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.proofOfAddress && (
+                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.proofOfAddress.name}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bankStatement">03. Bank Statement Copy</Label>
+                <input
+                  id="bankStatement"
+                  name="bankStatement"
+                  type="file"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {files.bankStatement && (
+                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.bankStatement.name}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Step 1: Personal */}
+          {currentStep === 1 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Personal Information</h3>
 
@@ -371,29 +582,23 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
               <div className="space-y-2">
               <div className="space-y-2">
                 <Label htmlFor="phoneNumber">Phone Number *</Label>
-                <div className="flex gap-2">
-                  <select
-                    id="countryCode"
-                    name="countryCode"
-                    value={formData.countryCode || ''}
-                    onChange={(e) => {
-                      const selected = countries.find(c => c.phoneCode === e.target.value)
-                      setFormData(prev => ({
-                        ...prev,
-                        countryCode: e.target.value,
-                        expectedLength: selected?.phoneLength || 10,
-                      }))
-                    }}
-                    disabled={isSubmitting}
-                    className="w-1/3 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  >
-                    <option value="">Code</option>
-                    {countries.map((c) => (
-                      <option key={c.code} value={c.phoneCode}>
-                        {c.name} ({c.phoneCode})
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex gap-3">
+                <SearchableCountrySelect
+                  label="Country Code"
+                  hideLabel 
+                  className="w-28" 
+                  value={formData.countryCode || ''}
+                  showPhoneCode
+                  disabled={isSubmitting}
+                  onChange={(newVal, meta) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      countryCode: newVal,
+                      expectedLength: meta?.phoneLength || 10,
+                    }))
+                  }}
+                  placeholder="Select code"
+                />
 
                   <Input
                     id="phoneNumber"
@@ -517,22 +722,18 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="taxResidency">Tax Residency *</Label>
-                <select
-                  id="taxResidency"
-                  name="taxResidency"
-                  value={formData.taxResidency}
-                  onChange={handleChange}
-                  required
-                  disabled={isSubmitting}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <option value="">Select your tax residency</option>
-                  {countries.map((c) => (
-                    <option key={c.code} value={c.name}>
-                      {c.name}
-                    </option>
-                  ))}
-</select>
+                <SearchableCountrySelect
+                  label="Tax Residency"
+                  hideLabel
+                  value={formData.taxResidency || ''} 
+                  onChange={newVal => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      taxResidency: newVal,
+                    }))
+                  }}
+                  placeholder="Search country..."
+                />
               </div>
 
               <div className="space-y-2">
@@ -543,8 +744,11 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
                   value={formData.taxIdentificationNumber}
                   onChange={handleChange}
                   placeholder="Enter your tax identification number"
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  required
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm 
+                            ring-offset-background placeholder:text-muted-foreground 
+                            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 
+                            focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  required                               
                   disabled={isSubmitting}
                 />
               </div>
@@ -552,7 +756,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
           )}
 
           {/* Step 2: Project */}
-          {currentStep === 1 && (
+          {currentStep === 2 && (
             <div className="space-y-6">
               <h3 className="text-lg font-semibold">Project Information</h3>
 
@@ -593,63 +797,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
             </div>
           )}
 
-          {/* Step 3: KYC */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold">KYC Documents</h3>
-              <p className="text-sm text-muted-foreground">
-                Upload certified/notarised copies (dated within 3 months). We can help with certification if needed.
-              </p>
 
-              <div className="space-y-2">
-                <Label htmlFor="passportCopy">01. Passport Copy</Label>
-                <input
-                  id="passportCopy"
-                  name="passportCopy"
-                  type="file"
-                  onChange={handleFileChange}
-                  disabled={isSubmitting}
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-                {files.passportCopy && (
-                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.passportCopy.name}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="proofOfAddress">02. Proof of Address</Label>
-                <input
-                  id="proofOfAddress"
-                  name="proofOfAddress"
-                  type="file"
-                  onChange={handleFileChange}
-                  disabled={isSubmitting}
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-                {files.proofOfAddress && (
-                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.proofOfAddress.name}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bankStatement">03. Bank Statement Copy</Label>
-                <input
-                  id="bankStatement"
-                  name="bankStatement"
-                  type="file"
-                  onChange={handleFileChange}
-                  disabled={isSubmitting}
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  className="w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-                {files.bankStatement && (
-                  <p className="text-xs text-green-600 mt-1">✓ Selected: {files.bankStatement.name}</p>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Step 4: Review */}
           {currentStep === 3 && (
@@ -706,7 +854,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
                 <Button 
                   type="button" 
                   onClick={nextStep}
-                  disabled={isSubmitting || phoneInvalid}
+                  disabled={isSubmitting || (isPersonalStep && phoneInvalid)}
                 >
                   Next
                 </Button>
@@ -714,7 +862,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
                 <Button
                   type="button"
                   onClick={(e) => handleSubmit('button', e)}
-                  disabled={isSubmitting || phoneInvalid}
+                  disabled={isSubmitting || (isPersonalStep && phoneInvalid)}
                 >
                   {isSubmitting ? 'Submitting...' : 'Submit Onboarding Form'}
                 </Button>
