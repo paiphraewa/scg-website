@@ -6,7 +6,7 @@ import { ensurePendingOrder } from '@/lib/orders'
 import { upsertProspect } from '@/lib/prospects'
 
 export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-dynamic'npx prisma migrate reset
 
 function asDateOrNull(v: unknown) {
   if (!v) return null
