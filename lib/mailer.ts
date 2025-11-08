@@ -11,6 +11,12 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY || ''
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.RESEND_FROM || 'no-reply@example.test'
 const IS_SIMULATE = !RESEND_API_KEY
 
+if (IS_SIMULATE) {
+  console.warn(
+    '[mailer] Running in simulation mode — no RESEND_API_KEY found. Emails will be logged to console only.'
+  )
+}
+
 let resend: Resend | null = null
 if (RESEND_API_KEY) {
   resend = new Resend(RESEND_API_KEY)

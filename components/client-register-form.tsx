@@ -214,7 +214,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
       const fd = new FormData()
       fd.append('file', files.passportCopy)
 
-      const res = await fetch('/api/ocr/passport', { method: 'POST', body: fd })
+      const res = await fetch('/api/ocr/passport', { method: 'POST',  credentials: 'include', body: fd })
       const data = await res.json()
 
       if (!res.ok) {
@@ -230,7 +230,10 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
         dateOfBirth:        data.dateOfBirth        ?? prev.dateOfBirth,        // YYYY-MM-DD
       }))
     } catch (e: any) {
-      setError(e?.message || 'Could not read this passport. You can fill details manually.')
+      const msg = e?.name === 'AbortError'
+        ? 'OCR request took too long. Try a smaller or clearer image.'
+        : (e?.message || 'Could not read this passport. You can fill details manually.')
+      setError(msg)
     } finally {
       setIsOcrLoading(false)
     }
@@ -244,7 +247,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
     fd.append('documentType', documentType)
     fd.append('onboardingId', onboardingId)
 
-    const res = await fetch('/api/upload', { method: 'POST', body: fd })
+    const res = await fetch('/api/upload', { method: 'POST', credentials: 'include', body: fd })
     if (!res.ok) throw new Error(`Failed to upload ${documentType}`)
     return res.json()
   }
@@ -345,6 +348,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
       // Create Onboarding
       const res = await fetch('/api/client-onboarding', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
@@ -371,6 +375,7 @@ export function ClientRegisterForm({ jurisdiction }: ClientRegisterFormProps) {
         // Patch onboarding with uploaded file paths (non-fatal if it fails)
         const patch = await fetch(`/api/client-onboarding/${onboardingId}/files`, {
           method: 'PATCH',
+          credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(filePaths),
         })

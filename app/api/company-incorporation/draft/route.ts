@@ -7,6 +7,7 @@ import { upsertProspect } from '@/lib/prospects'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 function asDateOrNull(v: unknown) {
   if (!v) return null

@@ -1,8 +1,9 @@
 {
-  "/company-incorporation/page": "app/company-incorporation/page.js",
-  "/login/page": "app/login/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
-  "/client-register/page": "app/client-register/page.js",
-  "/success/page": "app/success/page.js",
-  "/pricing/page": "app/pricing/page.js"
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js",
+  "/company-incorporation/page": "app/company-incorporation/page.js",
+  "/incorporate/[jurisdiction]/page": "app/incorporate/[jurisdiction]/page.js",
+  "/api/company-incorporation/draft/route": "app/api/company-incorporation/draft/route.js"
 }

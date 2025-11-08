@@ -29,6 +29,7 @@ async function markPaid(onboardingId: string) {
       'Content-Type': 'application/json',
       Cookie: cookieHeader,
     },
+    credentials: 'include',
     body: JSON.stringify({ onboardingId }),
     cache: 'no-store',
   })

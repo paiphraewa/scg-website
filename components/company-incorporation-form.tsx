@@ -299,7 +299,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
           const res = await fetch('/api/company-incorporation/draft', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            credentials: 'include', // ⬅️ send next-auth cookies with the request
+            credentials: 'include',
             body: JSON.stringify({
               onboardingId,
               status: 'draft',
@@ -367,7 +367,13 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
       setIsLoadingDraft(true)
       try {
         // Use the draft endpoint with query parameter
-        const response = await fetch(`/api/company-incorporation/draft?onboardingId=${onboardingId}`)
+        const response = await fetch(
+          `/api/company-incorporation/draft?onboardingId=${onboardingId}`,
+          {
+            method: 'GET',
+            credentials: 'include',
+          }
+        )
         if (response.ok) {
           const draftData = await response.json()
           if (draftData) {
@@ -488,6 +494,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
 
       const response = await fetch('/api/company-incorporation/draft', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           onboardingId,                    // 👈 from props
@@ -964,6 +971,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
 
     const uploadRes = await fetch('/api/upload', {
       method: 'POST',
+      credentials: 'include',
       body: fd,
     })
 
@@ -1080,6 +1088,7 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
       const res = await fetch('/api/company-incorporation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(submissionData),
       });
 

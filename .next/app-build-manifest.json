@@ -26,20 +26,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/company-incorporation/page.js"
     ],
-    "/pricing/page": [
+    "/_not-found/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/pricing/page.js"
-    ],
-    "/client-register/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/client-register/page.js"
-    ],
-    "/success/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/success/page.js"
+      "static/chunks/app/_not-found/page.js"
     ]
   }
 }
