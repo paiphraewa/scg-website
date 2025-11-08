@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase()
     const key = `uploads/${onboardingId}/${documentType}_${ts}.${ext}`
 
-    // Upload to Vercel Blob (returns a public URL)
-    const { url } = await put(key, file, { access: 'public' })
+    const token = process.env.BLOB_READ_WRITE_TOKEN
+    const { url } = await put(key, file, { access: 'public', token })
 
     // ⚠️ Return shape that your client expects (documentType + filePath)
     return NextResponse.json({
