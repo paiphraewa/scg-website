@@ -792,41 +792,51 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
   async function saveDrawnSignature() {
     if (!canvasRef) return
 
-    // 1. get dataURL from canvas
-    const dataUrl = canvasRef.toDataURL('image/png')
-
-    // 2. you MUST know the onboardingId here.
-    // if you keep it in state / props / URL, get it from there.
-    // For now let's assume you have it in formData or search params.
     const onboardingId =
       formData?.onboardingId ||
       searchParams.get('onboardingId') ||
-      'temp-onboarding'
+      ''
+
+    if (!onboardingId) {
+      setError('Missing onboardingId; cannot upload signature yet.')
+      return
+    }
+
+    // Convert the canvas to a real PNG Blob (more reliable than fetch(dataURL))
+    const blob: Blob | null = await new Promise((resolve) =>
+      canvasRef.toBlob((b) => resolve(b), 'image/png')
+    )
+    if (!blob) {
+      setError('Could not read signature from canvas. Please draw again.')
+      return
+    }
+
+    // Make a File so FormData carries a filename + type
+    const file = new File([blob], 'signature.png', { type: 'image/png' })
 
     try {
-      // 3. upload to backend
-      const filePath = await uploadSignatureDataUrl(onboardingId, dataUrl)
+      const filePath = await uploadSignatureFile(onboardingId, file)
 
-      // 4. save to your formData.declaration
+      // Keep a dataURL preview for the UI only
+      const reader = new FileReader()
+      reader.onload = () => setSignaturePreview(String(reader.result || ''))
+      reader.readAsDataURL(file)
+
       setFormData(prev => ({
         ...prev,
         declaration: {
           ...prev.declaration,
           signatureType: 'drawn',
-          signature: filePath,           // <-- store usable URL
-          signatureDataUrl: dataUrl,     // optional: keep for preview
-          signatureFileName: filePath.split('/').pop() || '',
+          signature: filePath,                          // use the returned path/url
+          signatureFileName: 'signature.png',
+          signatureDataUrl: '',                         // optional, we keep preview separately
         },
-        // also stamp signedAt if not already
         signedAt: prev.signedAt || new Date().toISOString(),
       }))
-
-      // 5. show preview in UI
-      setSignaturePreview(dataUrl)
       setSignatureMethod(null)
     } catch (err: any) {
-      console.error(err)
-      setError?.(err.message || 'Failed to save signature')
+      console.error('signature upload error:', err)
+      setError(err?.message || 'Failed to upload signature')
     }
   }
 
@@ -955,17 +965,9 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
     }))
   }
 
-  async function uploadSignatureDataUrl(onboardingId: string, dataUrl: string) {
-    // 1. convert dataURL → Blob
-    const res = await fetch(dataUrl)
-    const blob = await res.blob()
-
-    // 2. make File
-    const file = new File([blob], 'signature.png', { type: 'image/png' })
-
-    // 3. send to your existing /api/upload
+  async function uploadSignatureFile(onboardingId: string, file: File) {
     const fd = new FormData()
-    fd.append('file', file)
+    fd.append('file', file, file.name)
     fd.append('documentType', 'signature')
     fd.append('onboardingId', onboardingId)
 
@@ -975,14 +977,15 @@ export function CompanyIncorporationForm({ onboardingId, jurisdiction }: Company
       body: fd,
     })
 
-    const json = await uploadRes.json()
+    const json = await uploadRes.json().catch(() => ({}))
     if (!uploadRes.ok) {
       throw new Error(json?.error || 'Failed to upload signature')
     }
 
-    // json.filePath looks like: /api/uploads/<onboardingId>/signature_...png
-    return json.filePath as string
+    // In your route you return { filePath, fileName, ... }
+    return (json.filePath as string) || ''
   }
+
 
   const addRelevantIndividual = () => {
     setFormData(prev => ({
