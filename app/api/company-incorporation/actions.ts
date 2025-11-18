@@ -139,8 +139,6 @@ export async function saveCompanyDraft(onboardingId: string, payload: CompanyDra
       customShares: true,
       customParValue: true,
       complexStructureNotes: true,
-      orderSeal: true,
-      sealQuantity: true,
       signatureType: true,
       signatureFilePath: true,
       signatureFileName: true,
