@@ -1,4 +1,7 @@
 // app/api/incorporation/lookup/route.ts
+export const dynamic = "force-dynamic";   
+export const runtime = "nodejs";          
+
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,7 +17,7 @@ const slugToToken: Record<string, "BVI" | "CAYMAN" | "PANAMA" | "HONGKONG" | "SI
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
-    if (!session || !session.user?.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ found: false, reason: "Unauthenticated" }, { status: 401 });
     }
 
@@ -22,26 +25,17 @@ export async function GET(req: NextRequest) {
     const jurisdictionSlug = (searchParams.get("jurisdiction") || "bvi").toLowerCase();
     const jurisdictionToken = slugToToken[jurisdictionSlug] || "BVI";
 
-    // Find last draft incorporation for this user + jurisdiction
     const incorporation = await prisma.companyIncorporation.findFirst({
       where: {
         jurisdiction: jurisdictionToken,
         status: "draft",
-        onboarding: {
-          userId: session.user.id,
-        },
+        onboarding: { userId: session.user.id },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        onboarding: true,
-      },
+      orderBy: { createdAt: "desc" },
+      include: { onboarding: true },
     });
 
-    if (!incorporation) {
-      return NextResponse.json({ found: false });
-    }
+    if (!incorporation) return NextResponse.json({ found: false });
 
     return NextResponse.json({
       found: true,
