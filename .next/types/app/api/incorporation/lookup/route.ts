@@ -1,4 +1,4 @@
-// File: /Users/phraewaphuriyaphan/Desktop/Synergy_updatedform/app/api/incorporation/lookup/route.ts
+// File: /Users/phraewaphuriyaphan/Desktop/Synergy_pa_sg/app/api/incorporation/lookup/route.ts
 import * as entry from '../../../../../../app/api/incorporation/lookup/route.js'
 import type { NextRequest } from 'next/server.js'
 

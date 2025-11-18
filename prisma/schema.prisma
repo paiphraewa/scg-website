@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
@@ -109,48 +109,64 @@ model CompanyIncorporation {
   onboardingId String  @unique
   jurisdiction String?
 
-  // JSON fields for form data
-  companyNames               Json
-  relevantIndividuals        Json
-  sourceOfFunds              Json
-  recordsLocation            Json
-  declaration                Json
+  // ============================================
+  // BVI FIELDS (NOW OPTIONAL TO SUPPORT PANAMA)
+  // ============================================
+  companyNames               Json?
+  relevantIndividuals        Json?
+  sourceOfFunds              Json?
+  recordsLocation            Json?
+  declaration                Json?
   requiresNomineeShareholder Boolean @default(false)
-  shareholders               Json
+  shareholders               Json?
   requiresNomineeDirector    Boolean @default(false)
-  directors                  Json
+  directors                  Json?
 
-  // Simple fields from form
+  // ============================================
+  // PANAMA FIELDS (NEW OPTIONAL JSON)
+  // ============================================
+  panamaLegalEntity     Json?
+  panamaBeneficialOwner Json?
+  panamaDirectors       Json?
+
+  // -------- SINGAPORE FIELDS (NEW OPTIONAL JSON) --------
+  singaporeCompanyDetails Json?
+  singaporeShareholders   Json?
+  singaporeDirectors      Json?
+
+  // ============================================
+  // SIMPLE FIELDS (BVI)
+  // ============================================
   purposeOfCompany      String?
-  geographicProfile     String?
+  geographicProfile     Json?
   authorizedShares      String?
   sharesParValue        String?
   currency              String? @default("USD")
   customShares          String?
   customParValue        String?
   complexStructureNotes String?
-  orderSeal             Boolean @default(true)
-  sealQuantity          String  @default("1")
-  needsRegisteredOffice   Boolean @default(false)
-  officeLocation          String?
-  registeredOfficeFeeHKD  Int     @default(0)
 
-  // Signature fields
-  signatureType     String? // 'drawn' or 'uploaded'
-  signatureFilePath String? // Path to the uploaded signature file
-  signatureFileName String? // Original file name
-  completedByName   String? // Person who completed the form
+  // ============================================
+  // SIGNATURE FIELDS (USED IN BVI FLOW)
+  // ============================================
+  signatureType     String?
+  signatureFilePath String?
+  signatureFileName String?
+  completedByName   String?
 
-  // Verification fields
-  signedAt  DateTime? // For querying/sorting by date
-  ipAddress String? // For security/audit purposes
-  userAgent String? // For debugging
+  // ============================================
+  // VERIFICATION / AUDIT FIELDS
+  // ============================================
+  signedAt  DateTime?
+  ipAddress String?
+  userAgent String?
 
   status String @default("draft")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Relation back to onboarding
   onboarding ClientOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@map("company_incorporations")
@@ -199,14 +215,14 @@ model Prospect {
 }
 
 model EmailVerification {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   email      String
   codeHash   String
   expiresAt  DateTime
-  attempts   Int      @default(0)
+  attempts   Int       @default(0)
   consumedAt DateTime?
   ip         String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   @@index([email])
   @@index([expiresAt])

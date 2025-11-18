@@ -1,51 +1,62 @@
-// app/client-register/page.tsx
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
 import { ClientRegisterForm } from '@/components/client-register-form'
 
 export default async function ClientRegisterPage({
   searchParams,
 }: {
-  searchParams: { jurisdiction?: string }
+  searchParams: { onboardingId?: string }
 }) {
   const session = await auth()
 
-  // Server-side protection - redirect if not logged in
-  if (!session) {
-    redirect('/login?callbackUrl=/client-register')
-  }
+  // Must be logged in
+  if (!session) redirect('/login?callbackUrl=/client-register')
 
-  const jurisdiction = searchParams.jurisdiction || 'BVI'
+  // Must have onboardingId
+  const onboardingId = searchParams.onboardingId
+  if (!onboardingId) redirect('/incorporate/bvi')
+
+  // Fetch onboarding and related incorporation
+  const onboarding = await prisma.clientOnboarding.findUnique({
+    where: { id: onboardingId },
+    select: {
+      companyIncorporations: {
+        select: { jurisdiction: true },
+      },
+    },
+  })
+
+  // Extract jurisdiction
+  const jurisdiction =
+    onboarding?.companyIncorporations?.[0]?.jurisdiction || 'BVI'
+
   const jurisdictionName = getJurisdictionName(jurisdiction)
 
   return (
     <div className="container mx-auto py-8 px-4">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">Client Onboarding - {jurisdictionName}</h1>
+        <h1 className="text-3xl font-bold mb-2">
+          Client Onboarding – {jurisdictionName}
+        </h1>
+
         <p className="text-muted-foreground">
           Welcome back, {session.user?.email}! Complete client onboarding form below.
         </p>
       </div>
-      
+
       <ClientRegisterForm jurisdiction={jurisdiction} />
     </div>
   )
 }
 
-// Helper function to get jurisdiction display name
-function getJurisdictionName(jurisdictionId: string): string {
-  const jurisdictions: { [key: string]: string } = {
-    'bvi': 'British Virgin Islands (BVI)',
-    'cayman': 'Cayman Islands',
-    'hongkong': 'Hong Kong',
-    'singapore': 'Singapore',
-    'panama': 'Panama',
-    'BVI': 'British Virgin Islands (BVI)',
-    'KY': 'Cayman Islands', 
-    'HK': 'Hong Kong',
-    'SG': 'Singapore',
-    'PA': 'Panama',
+function getJurisdictionName(j: string): string {
+  const map: Record<string, string> = {
+    BVI: 'British Virgin Islands (BVI)',
+    PANAMA: 'Panama',
+    SINGAPORE: 'Singapore',
+    HONGKONG: 'Hong Kong',
+    CAYMAN: 'Cayman Islands',
   }
-  
-  return jurisdictions[jurisdictionId] || jurisdictionId.toUpperCase()
+  return map[j] || j
 }

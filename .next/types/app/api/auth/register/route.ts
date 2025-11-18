@@ -1,4 +1,4 @@
-// File: /Users/phraewaphuriyaphan/Desktop/Synergy_updatedform/app/api/auth/register/route.ts
+// File: /Users/phraewaphuriyaphan/Desktop/Synergy_pa_sg/app/api/auth/register/route.ts
 import * as entry from '../../../../../../app/api/auth/register/route.js'
 import type { NextRequest } from 'next/server.js'
 

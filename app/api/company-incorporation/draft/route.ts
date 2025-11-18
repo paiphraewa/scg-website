@@ -71,8 +71,6 @@ export async function POST(request: NextRequest) {
       customShares,
       customParValue,
       complexStructureNotes,
-      orderSeal,
-      sealQuantity,
       requiresNomineeShareholder,
       requiresNomineeDirector,
 
@@ -100,13 +98,6 @@ export async function POST(request: NextRequest) {
     const signedAtServer =
       asDateOrNull(signedAt) ?? (signatureType ? new Date() : null)
 
-    // Registered office fee logic
-    const needsRegisteredOffice = Boolean(sourceOfFunds?.needsRegisteredOffice)
-    const officeLocation = needsRegisteredOffice
-      ? null
-      : (sourceOfFunds?.officeLocation ?? null)
-    const registeredOfficeFeeHKD = needsRegisteredOffice ? 1500 : 0
-
     // Build safe data for Prisma (never write undefined into JSON columns)
     const prismaData = {
       // JSON columns
@@ -131,14 +122,7 @@ export async function POST(request: NextRequest) {
       customShares: customShares ?? '',
       customParValue: customParValue ?? '',
       complexStructureNotes: complexStructureNotes ?? '',
-      orderSeal: orderSeal ?? true,
-      sealQuantity: sealQuantity ?? '1',
       jurisdiction: jurisdiction ?? 'BVI',
-
-      // Registered office derived fields
-      needsRegisteredOffice,
-      officeLocation,
-      registeredOfficeFeeHKD,
 
       // Signature / verification
       completedByName: completedByName ?? null,

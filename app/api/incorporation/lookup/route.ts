@@ -1,45 +1,59 @@
 // app/api/incorporation/lookup/route.ts
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(req: Request) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+const slugToToken: Record<string, "BVI" | "CAYMAN" | "PANAMA" | "HONGKONG" | "SINGAPORE"> = {
+  bvi: "BVI",
+  cayman: "CAYMAN",
+  panama: "PANAMA",
+  hongkong: "HONGKONG",
+  singapore: "SINGAPORE",
+};
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth();
+    if (!session || !session.user?.id) {
+      return NextResponse.json({ found: false, reason: "Unauthenticated" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const jurisdictionSlug = (searchParams.get("jurisdiction") || "bvi").toLowerCase();
+    const jurisdictionToken = slugToToken[jurisdictionSlug] || "BVI";
+
+    // Find last draft incorporation for this user + jurisdiction
+    const incorporation = await prisma.companyIncorporation.findFirst({
+      where: {
+        jurisdiction: jurisdictionToken,
+        status: "draft",
+        onboarding: {
+          userId: session.user.id,
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        onboarding: true,
+      },
+    });
+
+    if (!incorporation) {
+      return NextResponse.json({ found: false });
+    }
+
+    return NextResponse.json({
+      found: true,
+      status: incorporation.status,
+      onboardingId: incorporation.onboardingId,
+      token: incorporation.jurisdiction,
+    });
+  } catch (err) {
+    console.error("Error in /api/incorporation/lookup:", err);
+    return NextResponse.json(
+      { found: false, error: "Lookup failed" },
+      { status: 500 }
+    );
   }
-
-  const { searchParams } = new URL(req.url)
-  const jurisdiction = (searchParams.get('jurisdiction') || 'bvi').toLowerCase()
-
-  // Map slug -> token used in DB (you can expand later)
-  const slugToToken: Record<string, string> = {
-    bvi: 'BVI',
-    cayman: 'CAYMAN',
-    panama: 'PANAMA',
-    hongkong: 'HONGKONG',
-    singapore: 'SINGAPORE',
-  }
-  const token = slugToToken[jurisdiction] || 'BVI'
-
-  // Find the most recent incorporation in this jurisdiction for the user
-  const inc = await prisma.companyIncorporation.findFirst({
-    where: {
-      jurisdiction: token,
-      onboarding: { userId: session.user.id },
-    },
-    orderBy: { updatedAt: 'desc' },
-    select: { onboardingId: true, status: true, jurisdiction: true },
-  })
-
-  if (!inc) {
-    return NextResponse.json({ found: false, token })
-  }
-
-  return NextResponse.json({
-    found: true,
-    status: inc.status,           // 'draft' | 'submitted' | 'paid' | ...
-    onboardingId: inc.onboardingId,
-    token,                        // for convenience in client redirect
-  })
 }
