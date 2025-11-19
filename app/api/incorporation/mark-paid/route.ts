@@ -1,13 +1,14 @@
 // app/api/incorporation/mark-paid/route.ts
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
+
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import { markOrderPaidByOnboarding } from '@/lib/orders'
 import { sendEmail } from '@/lib/mailer'   // ✅ optional: send confirmation safely
-
-export const runtime = 'nodejs'
-export const dynamic = 'force-dynamic'
-export const maxDuration = 60
 
 export async function POST(req: Request) {
   try {

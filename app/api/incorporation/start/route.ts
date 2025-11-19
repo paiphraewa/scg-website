@@ -1,7 +1,12 @@
 // app/api/incorporation/start/route.ts
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
 
 // Slug -> token used in DB
 const slugToToken: Record<string, "BVI" | "CAYMAN" | "PANAMA" | "HONGKONG" | "SINGAPORE"> = {
