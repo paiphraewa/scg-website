@@ -229,6 +229,42 @@ export function JurisdictionsGrid() {
     router.push(`/error`);
   };
 
+  async function startCaymanCompany() {
+    try {
+      // 1. Check login
+      const session = await fetch("/api/auth/session").then((r) => r.json());
+      const isLoggedIn = session?.user?.id;
+
+      if (!isLoggedIn) {
+        window.location.href = "/login?callbackUrl=/incorporate/cayman";
+        return;
+      }
+
+      // 2. Check for existing draft
+      const lookup = await fetch(
+        "/api/incorporation/lookup?jurisdiction=cayman"
+      ).then((r) => r.json());
+
+      if (lookup?.found && lookup?.onboardingId) {
+        // Redirect to Form 1 with existing onboardingId
+        window.location.href = `/company-incorporation/cayman/entity-instruction?onboardingId=${lookup.onboardingId}&jurisdiction=cayman`;
+        return;
+      }
+
+      // 3. Start new incorporation
+      const start = await fetch(
+        "/api/incorporation/start?jurisdiction=cayman",
+        { method: "POST" }
+      ).then((r) => r.json());
+
+      if (start?.onboardingId) {
+        window.location.href = `/company-incorporation/cayman/entity-instruction?onboardingId=${start.onboardingId}&jurisdiction=cayman`;
+      }
+    } catch (err) {
+      console.error("startCaymanCompany error:", err);
+    }
+  }
+
   // MAIN HANDLER
   const handleStartCompany = async (jurisdictionCode: string) => {
     if (status === "loading") return;
@@ -241,6 +277,10 @@ export function JurisdictionsGrid() {
 
     if (slug === "singapore") {
       return startSingaporeCompany();
+    }
+
+    if (slug === "cayman") {
+      return startCaymanCompany();
     }
 
     // Non-Panama jurisdictions:

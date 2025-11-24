@@ -110,7 +110,7 @@ model CompanyIncorporation {
   jurisdiction String?
 
   // ============================================
-  // BVI FIELDS (NOW OPTIONAL TO SUPPORT PANAMA)
+  // BVI FIELDS
   // ============================================
   companyNames               Json?
   relevantIndividuals        Json?
@@ -123,19 +123,29 @@ model CompanyIncorporation {
   directors                  Json?
 
   // ============================================
-  // PANAMA FIELDS (NEW OPTIONAL JSON)
+  // PANAMA
   // ============================================
   panamaLegalEntity     Json?
   panamaBeneficialOwner Json?
   panamaDirectors       Json?
 
-  // -------- SINGAPORE FIELDS (NEW OPTIONAL JSON) --------
+  // ============================================
+  // SINGAPORE
+  // ============================================
   singaporeCompanyDetails Json?
   singaporeShareholders   Json?
   singaporeDirectors      Json?
+  singaporeDeclaration    Json?
 
   // ============================================
-  // SIMPLE FIELDS (BVI)
+  // CAYMAN (Three forms)
+  // ============================================
+  caymanEntityInstruction Json?     // Form 1
+  caymanDueDiligence      Json?     // Form 2
+  caymanBoDeclaration     Json?     // Form 3
+
+  // ============================================
+  // SIMPLE FIELDS (BVI Style)
   // ============================================
   purposeOfCompany      String?
   geographicProfile     Json?
@@ -147,26 +157,25 @@ model CompanyIncorporation {
   complexStructureNotes String?
 
   // ============================================
-  // SIGNATURE FIELDS (USED IN BVI FLOW)
+  // SIGNATURE METADATA (used across all jurisdictions)
   // ============================================
+  signature          String?
   signatureType     String?
   signatureFilePath String?
   signatureFileName String?
   completedByName   String?
+  signedAt          DateTime?
+  ipAddress         String?
+  userAgent         String?
 
   // ============================================
-  // VERIFICATION / AUDIT FIELDS
+  // META
   // ============================================
-  signedAt  DateTime?
-  ipAddress String?
-  userAgent String?
-
-  status String @default("draft")
-
+  status    String   @default("draft")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relation back to onboarding
+  // Relation
   onboarding ClientOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@map("company_incorporations")

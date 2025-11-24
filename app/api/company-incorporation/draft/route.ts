@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
 
     // Pull out scalars / JSON
     const {
+      caymanEntityInstruction,
+      caymanDueDiligence,
+      caymanBoDeclaration,
       // signature / verification
       signatureType,
       signatureFilePath,
@@ -133,6 +136,17 @@ export async function POST(request: NextRequest) {
       ipAddress: inferredIp,
       userAgent: inferredUA,
 
+      caymanEntityInstruction: caymanEntityInstruction
+        ? jsonOrObj(caymanEntityInstruction)
+        : undefined,
+      caymanDueDiligence: caymanDueDiligence
+        ? jsonOrObj(caymanDueDiligence)
+        : undefined,
+
+      caymanBoDeclaration: caymanBoDeclaration
+        ? jsonOrObj(caymanBoDeclaration)
+        : undefined,
+        
       status,
       updatedAt: new Date(),
     }

@@ -16,20 +16,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/login/page.js"
     ],
-    "/company-incorporation/singapore/page": [
+    "/company-incorporation/cayman/entity-instruction/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/company-incorporation/singapore/page.js"
-    ],
-    "/pricing/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/pricing/page.js"
-    ],
-    "/client-register/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/client-register/page.js"
+      "static/chunks/app/company-incorporation/cayman/entity-instruction/page.js"
     ]
   }
 }

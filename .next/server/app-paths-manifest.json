@@ -1,8 +1,7 @@
 {
+  "/api/upload/route": "app/api/upload/route.js",
   "/page": "app/page.js",
   "/login/page": "app/login/page.js",
-  "/company-incorporation/singapore/page": "app/company-incorporation/singapore/page.js",
-  "/pricing/page": "app/pricing/page.js",
-  "/client-register/page": "app/client-register/page.js",
+  "/company-incorporation/cayman/entity-instruction/page": "app/company-incorporation/cayman/entity-instruction/page.js",
   "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js"
 }

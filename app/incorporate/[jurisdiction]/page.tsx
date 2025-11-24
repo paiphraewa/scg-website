@@ -49,6 +49,51 @@ export default async function IncorporationPage({
     redirect("/error");
   }
 
+  // ✅ CAYMAN → lookup or start → go to Cayman Form 1
+  if (j === "cayman") {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+
+    // Step 1 — check for draft
+    try {
+      const lookupRes = await fetch(
+        `${baseUrl}/api/incorporation/lookup?jurisdiction=cayman`,
+        { cache: "no-store" }
+      );
+
+      if (lookupRes.ok) {
+        const info = await lookupRes.json();
+
+        if (info.found && info.onboardingId) {
+          redirect(
+            `/company-incorporation/cayman/entity-instruction?onboardingId=${info.onboardingId}&jurisdiction=cayman`
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Cayman lookup error:", err);
+    }
+
+    // Step 2 — no draft → start new row
+    try {
+      const startRes = await fetch(
+        `${baseUrl}/api/incorporation/start?jurisdiction=cayman`,
+        { method: "POST", cache: "no-store" }
+      );
+
+      const startData = await startRes.json();
+
+      if (startData?.onboardingId) {
+        redirect(
+          `/company-incorporation/cayman/entity-instruction?onboardingId=${startData.onboardingId}&jurisdiction=cayman`
+        );
+      }
+    } catch (err) {
+      console.error("Cayman start error:", err);
+    }
+
+    redirect("/error");
+  }
+
   // ✅ Old flow for others
   const jurisdictionName = getJurisdictionName(j);
 

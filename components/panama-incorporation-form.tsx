@@ -202,7 +202,62 @@ export function PanamaIncorporationForm({
       othersDetail: "",
     },
 
+    directors: [
+      {
+        type: "",
+
+        // individual director fields
+        fullName: "",
+        passportNumber: "",
+        residentialAddress: "",
+        email: "",
+
+        // corporate director fields
+        companyName: "",
+        jurisdiction: "",
+        registrationNumber: "",
+        registeredAddress: "",
+
+        authorisedSignatoryName: "",
+        authorisedSignatoryPassport: "",
+        authorisedSignatoryAddress: "",
+      },
+      {
+        type: "",
+        fullName: "",
+        passportNumber: "",
+        residentialAddress: "",
+        email: "",
+
+        companyName: "",
+        jurisdiction: "",
+        registrationNumber: "",
+        registeredAddress: "",
+
+        authorisedSignatoryName: "",
+        authorisedSignatoryPassport: "",
+        authorisedSignatoryAddress: "",
+      },
+      {
+        type: "",
+        fullName: "",
+        passportNumber: "",
+        residentialAddress: "",
+        email: "",
+
+        companyName: "",
+        jurisdiction: "",
+        registrationNumber: "",
+        registeredAddress: "",
+
+        authorisedSignatoryName: "",
+        authorisedSignatoryPassport: "",
+        authorisedSignatoryAddress: "",
+      },
+    ],
+
     // Step 3…
+    hasAccountingFirm: "",
     accountingRecordsKeeperName: "",
     accountingRecordsKeeperPosition: "",
     accountingRecordsKeeperAddress: "",
@@ -351,6 +406,53 @@ export function PanamaIncorporationForm({
     clearSignature();
   };
 
+  const addDirector = () => {
+    setLegalEntity((prev) => ({
+      ...prev,
+      directors: [
+        ...prev.directors,
+        {
+          type: "",
+
+          fullName: "",
+          passportNumber: "",
+          residentialAddress: "",
+          email: "",
+
+          companyName: "",
+          jurisdiction: "",
+          registrationNumber: "",
+          registeredAddress: "",
+
+          authorisedSignatoryName: "",
+          authorisedSignatoryPassport: "",
+          authorisedSignatoryAddress: "",
+        },
+      ],
+    }));
+  };
+
+  const removeDirector = (index: number) => {
+    setLegalEntity((prev) => {
+      // don't allow < 3 directors
+      if (prev.directors.length <= 3) return prev;
+
+      return {
+        ...prev,
+        directors: prev.directors.filter((_, i) => i !== index),
+      };
+    });
+  };
+
+  const updateDirector = (index: number, field: string, value: any) => {
+    setLegalEntity((prev) => {
+      const updated = [...prev.directors];
+      updated[index] = { ...updated[index], [field]: value };
+
+      return { ...prev, directors: updated };
+    });
+  };
+
   const validateStep1 = () => {
     if (!legalEntity.assetTypes.trim()) return false;
     if (!legalEntity.legalEntityName.trim()) return false;
@@ -373,16 +475,19 @@ export function PanamaIncorporationForm({
   };
 
   const validateStep2 = () => {
+    // Must choose yes/no
     if (!legalEntity.nomineeDirectorsService) return false;
 
+    // If YES → justification required
     if (
       legalEntity.nomineeDirectorsService === "yes" &&
       !legalEntity.nomineeDirectorsJustification.trim()
-    )
+    ) {
       return false;
+    }
 
+    // Corporate structure reasons
     const r = legalEntity.corporateReasons;
-
     const hasAnyReason =
       r.privacyProtection ||
       r.expediteIncorporation ||
@@ -395,15 +500,55 @@ export function PanamaIncorporationForm({
 
     if (r.others && !r.othersDetail.trim()) return false;
 
-    // nominee validation already handled in step1, no need to repeat
+    // ----------------------------------------------------
+    // NEW LOGIC — If NO nominee directors → validate directors
+    // ----------------------------------------------------
+    if (legalEntity.nomineeDirectorsService === "no") {
+      const directors = legalEntity.directors || [];
+
+      // Must have at least 3 directors
+      if (directors.length < 3) return false;
+
+      for (const d of directors) {
+        // Must choose "individual" or "corporate"
+        if (!d.type || (d.type !== "individual" && d.type !== "corporate")) {
+          return false;
+        }
+
+        // -------------- INDIVIDUAL DIRECTOR RULES --------------
+        if (d.type === "individual") {
+          if (!d.fullName?.trim()) return false;
+          if (!d.passportNumber?.trim()) return false;
+          if (!d.residentialAddress?.trim()) return false;
+          if (!d.email?.trim()) return false;
+        }
+
+        // -------------- CORPORATE DIRECTOR RULES --------------
+        if (d.type === "corporate") {
+          if (!d.companyName?.trim()) return false;
+          if (!d.jurisdiction?.trim()) return false;
+          if (!d.registrationNumber?.trim()) return false;
+          if (!d.registeredAddress?.trim()) return false;
+
+          // optional advanced fields — do not block validation
+          // (COI, authorised signatory, UBO info are uploaded later)
+        }
+      }
+    }
+
+    // If nominee directors = YES → directors are not required at all
     return true;
   };
 
   const validateStep3 = () => {
+    if (!legalEntity.hasAccountingFirm) return false;
+
+    // Common validation for both Yes + No
     if (!legalEntity.accountingRecordsKeeperName.trim()) return false;
     if (!legalEntity.accountingRecordsKeeperPosition.trim()) return false;
     if (!legalEntity.accountingRecordsKeeperAddress.trim()) return false;
     if (!legalEntity.accountingRecordsKeeperEmail.trim()) return false;
+
     if (!legalEntity.accountingRecordsKeeperPhoneCountryCode) return false;
     if (!legalEntity.accountingRecordsKeeperPhoneNumber) return false;
 
@@ -411,16 +556,47 @@ export function PanamaIncorporationForm({
     if (
       expected &&
       legalEntity.accountingRecordsKeeperPhoneNumber.length !== expected
-    )
+    ) {
       return false;
+    }
 
     return true;
   };
 
   const validateStep4 = () => {
+    // Name + signature
     if (!legalEntity.clientName.trim()) return false;
     if (!legalEntity.signatureType) return false;
     if (!legalEntity.signatureDataUrl) return false;
+
+    // Validate directors only if nominee = no
+    if (legalEntity.nomineeDirectorsService === "no") {
+      if (!legalEntity.directors || legalEntity.directors.length < 3)
+        return false;
+
+      for (const d of legalEntity.directors) {
+        if (!d.type) return false;
+
+        if (d.type === "individual") {
+          if (!d.fullName?.trim()) return false;
+          if (!d.passportNumber?.trim()) return false;
+          if (!d.residentialAddress?.trim()) return false;
+          if (!d.email?.trim()) return false;
+        }
+
+        if (d.type === "corporate") {
+          if (!d.companyName?.trim()) return false;
+          if (!d.jurisdiction?.trim()) return false;
+          if (!d.registrationNumber?.trim()) return false;
+          if (!d.registeredAddress?.trim()) return false;
+
+          if (!d.authorisedSignatoryName?.trim()) return false;
+          if (!d.authorisedSignatoryPassport?.trim()) return false;
+          if (!d.authorisedSignatoryAddress?.trim()) return false;
+        }
+      }
+    }
+
     return true;
   };
 
@@ -432,7 +608,7 @@ export function PanamaIncorporationForm({
         onboardingId,
         jurisdiction,
         formType: "panama-legal-entity",
-        data: legalEntity,
+        data: legalEntity, // now includes directors + accounting
       };
 
       const res = await fetch(
@@ -445,24 +621,14 @@ export function PanamaIncorporationForm({
       );
 
       if (!res.ok) {
-        const txt = await res.text();
-        console.error("Submit failed:", txt);
         setStepError("Failed to submit. Please try again.");
         return;
       }
 
-      // 🔑 Decide whether we need Board of Directors form
-      const needsBoard =
-        legalEntity.nomineeDirectorsService === "no" ? "yes" : "no";
-
-      // 👉 Send this flag to Form 2 via query string
-      const query = new URLSearchParams({
-        onboardingId,
-        jurisdiction: jurisdiction || "panama",
-        needsBoard, // "yes" if we still need board form, "no" if we will skip it
-      }).toString();
-
-      router.push(`/company-incorporation/panama/beneficial-owner?${query}`);
+      // Decide next step
+      router.push(
+        `/company-incorporation/panama/beneficial-owner?onboardingId=${onboardingId}&jurisdiction=${jurisdiction}`
+      );
     } catch (err) {
       console.error(err);
       setStepError("Unexpected error occurred.");
@@ -480,10 +646,53 @@ export function PanamaIncorporationForm({
     }
 
     if (currentStep.id === "nominee-corporate") {
-      if (!validateStep2()) {
-        setStepError("Please complete all required fields before continuing.");
-        return;
+      if (legalEntity.nomineeDirectorsService === "")
+        return setStepError(
+          "Please select whether you require nominee directors."
+        );
+
+      // If YES → OK (no directors needed)
+      if (legalEntity.nomineeDirectorsService === "yes") {
+        return true;
       }
+
+      // If NO → must have ≥ 3 directors
+      if (legalEntity.directors.length < 3)
+        return setStepError("You must provide at least 3 directors.");
+
+      // Validate each
+      for (const d of legalEntity.directors) {
+        if (!d.type)
+          return setStepError(
+            "Each director must select a type (individual or corporate)."
+          );
+
+        if (d.type === "individual") {
+          if (
+            !d.fullName ||
+            !d.passportNumber ||
+            !d.residentialAddress ||
+            !d.email
+          )
+            return setStepError(
+              "Please complete all individual director fields."
+            );
+        }
+
+        if (d.type === "corporate") {
+          if (
+            !d.companyName ||
+            !d.jurisdiction ||
+            !d.registrationNumber ||
+            !d.registeredAddress
+          )
+            return setStepError(
+              "Please complete all corporate director fields."
+            );
+        }
+      }
+
+      return true;
     }
 
     if (currentStep.id === "accounting") {
@@ -495,11 +704,10 @@ export function PanamaIncorporationForm({
 
     if (currentStep.id === "review") {
       if (!validateStep4()) {
-        setStepError("Please complete all required fields (signature & name).");
+        setStepError("Please complete all required fields before submitting.");
         return;
       }
 
-      // FINAL SUBMIT
       await handleFinalSubmit();
       return;
     }
@@ -770,17 +978,23 @@ export function PanamaIncorporationForm({
                     </label>
                   </div>
 
+                  {/* NOMINEE = YES */}
                   {legalEntity.nomineeDirectorsService === "yes" && (
-                    <div className="space-y-2 mt-2">
-                      <Label>Please justify *</Label>
-                      <textarea
-                        name="nomineeDirectorsJustification"
-                        value={legalEntity.nomineeDirectorsJustification}
-                        onChange={handleChange}
-                        rows={3}
-                        placeholder="Explain why nominee directors are required"
-                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      />
+<div className="border rounded-md p-4 bg-blue-50 text-sm leading-relaxed text-gray-900">
+                      <p className="font-semibold mb-2">
+                        Nominee Directors Service Selected —{" "}
+                        <span className="text-blue-700">$600 USD / year</span>
+                      </p>
+                      <p>
+                        Under Panamanian corporate law, corporations (S.A.) must
+                        appoint at least
+                        <strong> three directors</strong> in the public
+                        registry. Choosing Nominee Directors allows our firm to
+                        appoint professional third-party directors on your
+                        behalf, providing full privacy, smoother operations, and
+                        separation between your identity and the public
+                        registry.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -790,7 +1004,6 @@ export function PanamaIncorporationForm({
                   <Label>Purpose for the entity’s corporate structure *</Label>
 
                   <div className="space-y-3 mt-2 text-sm">
-                    {/* Each checkbox */}
                     <label className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -810,7 +1023,7 @@ export function PanamaIncorporationForm({
                         }
                         onChange={handleReasonChange}
                       />
-                      <span>Expedit incorporation of the entity</span>
+                      <span>Expedite incorporation of the entity</span>
                     </label>
 
                     <label className="flex items-center space-x-2">
@@ -881,6 +1094,206 @@ export function PanamaIncorporationForm({
                     )}
                   </div>
                 </div>
+
+                {/* ============================= */}
+                {/*   NOMINEE = NO → SHOW DIRECTORS  */}
+                {/* ============================= */}
+                {legalEntity.nomineeDirectorsService === "no" && (
+                  <div className="space-y-6 pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Panama corporations must appoint{" "}
+                      <strong>at least 3 directors</strong>. Please fill in the
+                      required details below.
+                    </p>
+
+                    {legalEntity.directors.map((director, idx) => (
+                      <div
+                        key={idx}
+                        className="border border-gray-700 p-5 rounded-lg space-y-4 bg-slate-900 shadow-sm"
+                      >
+                        <div className="flex justify-between items-center">
+                          <h4 className="font-medium text-lg text-white">
+                            Director {idx + 1}
+                          </h4>
+
+                          {idx > 2 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeDirector(idx)}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Director Type */}
+                        <div className="space-y-2">
+                          <Label>Director Type *</Label>
+                          <select
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            value={director.type}
+                            onChange={(e) =>
+                              updateDirector(idx, "type", e.target.value)
+                            }
+                          >
+                            <option value="">Select</option>
+                            <option value="individual">
+                              Individual Director
+                            </option>
+                            <option value="corporate">
+                              Corporate Director
+                            </option>
+                          </select>
+                        </div>
+
+                        {/* ------------------------------ */}
+                        {/* INDIVIDUAL DIRECTOR FIELDS */}
+                        {/* ------------------------------ */}
+                        {director.type === "individual" && (
+                          <div className="space-y-4 text-sm">
+                            <div className="bg-blue-50 text-blue-900 border border-blue-200 p-3 rounded-md">
+                              <p className="font-semibold mb-1">
+                                Using Independent Directors (Recommended)
+                              </p>
+                              <ul className="list-disc ml-4">
+                                <li>
+                                  Enhanced privacy — names not on public
+                                  registry
+                                </li>
+                                <li>Lower compliance friction</li>
+                                <li>
+                                  Cost-efficient compared to nominee directors
+                                </li>
+                                <li>
+                                  Professional governance and fast turnaround
+                                </li>
+                              </ul>
+                            </div>
+
+                            <Input
+                              placeholder="Full Name"
+                              value={director.fullName}
+                              onChange={(e) =>
+                                updateDirector(idx, "fullName", e.target.value)
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Input
+                              placeholder="Passport / ID Number"
+                              value={director.passportNumber}
+                              onChange={(e) =>
+                                updateDirector(idx, "idNumber", e.target.value)
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Textarea
+                              rows={3}
+                              placeholder="Residential Address"
+                              value={director.residentialAddress}
+                              onChange={(e) =>
+                                updateDirector(
+                                  idx,
+                                  "residentialAddress",
+                                  e.target.value
+                                )
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Input
+                              type="email"
+                              placeholder="Email"
+                              value={director.email}
+                              onChange={(e) =>
+                                updateDirector(idx, "email", e.target.value)
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                        )}
+
+                        {/* ------------------------------ */}
+                        {/* CORPORATE DIRECTOR FIELDS */}
+                        {/* ------------------------------ */}
+                        {director.type === "corporate" && (
+                          <div className="space-y-4 text-sm">
+                            <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-md text-yellow-800">
+                              <p className="font-semibold mb-1">
+                                Using Project Team Members as Directors
+                              </p>
+                              <p className="mb-2">
+                                Ideal for teams who want full control without
+                                additional director fees. Suitable for founders
+                                comfortable appearing on the public registry.
+                              </p>
+                            </div>
+
+                            <Input
+                              placeholder="Company Name"
+                              value={director.companyName}
+                              onChange={(e) =>
+                                updateDirector(
+                                  idx,
+                                  "companyName",
+                                  e.target.value
+                                )
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Input
+                              placeholder="Jurisdiction of Incorporation"
+                              value={director.jurisdiction}
+                              onChange={(e) =>
+                                updateDirector(
+                                  idx,
+                                  "jurisdiction",
+                                  e.target.value
+                                )
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Input
+                              placeholder="Company Registration Number"
+                              value={director.registrationNumber}
+                              onChange={(e) =>
+                                updateDirector(
+                                  idx,
+                                  "registrationNumber",
+                                  e.target.value
+                                )
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+
+                            <Textarea
+                              rows={3}
+                              placeholder="Registered Office Address"
+                              value={director.registeredAddress}
+                              onChange={(e) =>
+                                updateDirector(
+                                  idx,
+                                  "registeredAddress",
+                                  e.target.value
+                                )
+                              }
+                              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* ADD DIRECTOR BUTTON */}
+                    <Button variant="secondary" onClick={addDirector}>
+                      + Add Another Director
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -895,115 +1308,157 @@ export function PanamaIncorporationForm({
 
                 <h3 className="text-lg font-semibold">3. Accounting Records</h3>
 
-                {/* RECORDS KEEPER NAME */}
+                {/* ================================
+        ACCOUNTING FIRM QUESTION
+    ================================ */}
                 <div className="space-y-2">
-                  <Label>Name of Records Keeper *</Label>
-                  <Input
-                    name="accountingRecordsKeeperName"
-                    value={legalEntity.accountingRecordsKeeperName}
-                    onChange={handleChange}
-                    placeholder="Full name or legal entity"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
+                  <Label>
+                    Do you have an accounting firm to manage the entity? *
+                  </Label>
 
-                {/* POSITION */}
-                <div className="space-y-2">
-                  <Label>Position *</Label>
-                  <Input
-                    name="accountingRecordsKeeperPosition"
-                    value={legalEntity.accountingRecordsKeeperPosition}
-                    onChange={handleChange}
-                    placeholder="e.g. Accountant, Administrator"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
+                  <div className="flex gap-6">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="hasAccountingFirm"
+                        value="yes"
+                        checked={legalEntity.hasAccountingFirm === "yes"}
+                        onChange={handleChange}
+                      />
+                      <span>Yes</span>
+                    </label>
 
-                {/* ADDRESS */}
-                <div className="space-y-2">
-                  <Label>Address *</Label>
-                  <textarea
-                    name="accountingRecordsKeeperAddress"
-                    value={legalEntity.accountingRecordsKeeperAddress}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Street, Number, Building, Floor, Country"
-                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-
-                {/* EMAIL */}
-                <div className="space-y-2">
-                  <Label>Email *</Label>
-                  <Input
-                    type="email"
-                    name="accountingRecordsKeeperEmail"
-                    value={legalEntity.accountingRecordsKeeperEmail}
-                    onChange={handleChange}
-                    placeholder="contact@example.com"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </div>
-
-                {/* Phone Number */}
-                <div className="space-y-2">
-                  <Label>Phone Number *</Label>
-
-                  <div className="flex gap-3">
-                    <SearchableCountrySelect
-                      label="Country Code"
-                      hideLabel
-                      className="w-32"
-                      value={
-                        legalEntity.accountingRecordsKeeperPhoneCountryCode
-                      }
-                      showPhoneCode
-                      onChange={(newVal, meta) => {
-                        setLegalEntity((prev) => ({
-                          ...prev,
-                          accountingRecordsKeeperPhoneCountryCode: newVal,
-                          accountingRecordsKeeperExpectedPhoneLength:
-                            meta?.phoneLength || 0,
-                        }));
-                        setStepError("");
-                      }}
-                      placeholder="Code"
-                    />
-
-                    <Input
-                      name="accountingRecordsKeeperPhoneNumber"
-                      value={legalEntity.accountingRecordsKeeperPhoneNumber}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "");
-                        const expected =
-                          legalEntity.accountingRecordsKeeperExpectedPhoneLength ||
-                          0;
-
-                        if (expected && digits.length > expected) {
-                          setStepError(
-                            `Phone number must be exactly ${expected} digits.`
-                          );
-                          return;
-                        }
-
-                        setLegalEntity((prev) => ({
-                          ...prev,
-                          accountingRecordsKeeperPhoneNumber: digits,
-                        }));
-                        setStepError("");
-                      }}
-                      placeholder="Phone number"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="hasAccountingFirm"
+                        value="no"
+                        checked={legalEntity.hasAccountingFirm === "no"}
+                        onChange={handleChange}
+                      />
+                      <span>No</span>
+                    </label>
                   </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    Expected length:{" "}
-                    {legalEntity.accountingRecordsKeeperExpectedPhoneLength ||
-                      "—"}{" "}
-                    digits
-                  </p>
                 </div>
+
+                {/* Show the following fields ONLY when a choice is made */}
+                {legalEntity.hasAccountingFirm && (
+                  <>
+                    {/* RECORDS KEEPER NAME */}
+                    <div className="space-y-2">
+                      <Label>
+                        {legalEntity.hasAccountingFirm === "yes"
+                          ? "Accounting Firm / Records Keeper Name *"
+                          : "Name of Records Keeper *"}
+                      </Label>
+                      <Input
+                        name="accountingRecordsKeeperName"
+                        value={legalEntity.accountingRecordsKeeperName}
+                        onChange={handleChange}
+                        placeholder="Full name or legal entity"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    {/* POSITION */}
+                    <div className="space-y-2">
+                      <Label>Position *</Label>
+                      <Input
+                        name="accountingRecordsKeeperPosition"
+                        value={legalEntity.accountingRecordsKeeperPosition}
+                        onChange={handleChange}
+                        placeholder="e.g. Accountant, Administrator"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    {/* ADDRESS */}
+                    <div className="space-y-2">
+                      <Label>Address *</Label>
+                      <textarea
+                        name="accountingRecordsKeeperAddress"
+                        value={legalEntity.accountingRecordsKeeperAddress}
+                        onChange={handleChange}
+                        rows={3}
+                        placeholder="Street, Number, Building, Floor, Country"
+                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    {/* EMAIL */}
+                    <div className="space-y-2">
+                      <Label>Email *</Label>
+                      <Input
+                        type="email"
+                        name="accountingRecordsKeeperEmail"
+                        value={legalEntity.accountingRecordsKeeperEmail}
+                        onChange={handleChange}
+                        placeholder="contact@example.com"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    {/* PHONE */}
+                    <div className="space-y-2">
+                      <Label>Phone Number *</Label>
+
+                      <div className="flex gap-3">
+                        <SearchableCountrySelect
+                          label="Country Code"
+                          hideLabel
+                          className="w-32"
+                          value={
+                            legalEntity.accountingRecordsKeeperPhoneCountryCode
+                          }
+                          showPhoneCode
+                          onChange={(newVal, meta) => {
+                            setLegalEntity((prev) => ({
+                              ...prev,
+                              accountingRecordsKeeperPhoneCountryCode: newVal,
+                              accountingRecordsKeeperExpectedPhoneLength:
+                                meta?.phoneLength || 0,
+                            }));
+                            setStepError("");
+                          }}
+                          placeholder="Code"
+                        />
+
+                        <Input
+                          name="accountingRecordsKeeperPhoneNumber"
+                          value={legalEntity.accountingRecordsKeeperPhoneNumber}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "");
+                            const expected =
+                              legalEntity.accountingRecordsKeeperExpectedPhoneLength ||
+                              0;
+
+                            if (expected && digits.length > expected) {
+                              setStepError(
+                                `Phone number must be exactly ${expected} digits.`
+                              );
+                              return;
+                            }
+
+                            setLegalEntity((prev) => ({
+                              ...prev,
+                              accountingRecordsKeeperPhoneNumber: digits,
+                            }));
+                            setStepError("");
+                          }}
+                          placeholder="Phone number"
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Expected length:{" "}
+                        {legalEntity.accountingRecordsKeeperExpectedPhoneLength ||
+                          "—"}{" "}
+                        digits
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -1015,7 +1470,7 @@ export function PanamaIncorporationForm({
 
                 {/* ================================
         SECTION 1 — LEGAL ENTITY INFO
-       ================================ */}
+    ================================ */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-base">
                     Legal Entity Information
@@ -1062,7 +1517,7 @@ export function PanamaIncorporationForm({
 
                 {/* =========================================
         SECTION 2 — NOMINEE SERVICE + CORPORATE
-       ========================================= */}
+    ========================================= */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-base">
                     Nominee Directors & Corporate Structure
@@ -1122,7 +1577,6 @@ export function PanamaIncorporationForm({
                           </div>
                         )}
 
-                        {/* If literally NOTHING was selected */}
                         {!Object.values(legalEntity.corporateReasons).some(
                           Boolean
                         ) && (
@@ -1137,7 +1591,7 @@ export function PanamaIncorporationForm({
 
                 {/* ================================
         SECTION 3 — ACCOUNTING RECORDS
-       ================================ */}
+    ================================ */}
                 <div className="space-y-4">
                   <h4 className="font-medium text-base">Accounting Records</h4>
 
@@ -1170,21 +1624,96 @@ export function PanamaIncorporationForm({
                   </div>
                 </div>
 
+                {/* =============== DIRECTORS BLOCK (only if no nominee) =============== */}
+                {legalEntity.nomineeDirectorsService === "no" && (
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-base">Directors</h4>
+
+                    <div className="border rounded-md p-4 space-y-4">
+                      {legalEntity.directors.map((d, i) => (
+                        <div
+                          key={i}
+                          className="border-b pb-4 mb-4 space-y-2 text-sm"
+                        >
+                          <SummaryRow
+                            label="Type"
+                            value={
+                              d.type === "individual"
+                                ? "Individual"
+                                : "Corporate"
+                            }
+                          />
+
+                          {/* INDIVIDUAL DIRECTOR */}
+                          {d.type === "individual" && (
+                            <>
+                              <SummaryRow
+                                label="Full Name"
+                                value={d.fullName}
+                              />
+                              <SummaryRow
+                                label="Passport Number"
+                                value={d.passportNumber}
+                              />
+                              <SummaryRow
+                                label="Residential Address"
+                                value={d.residentialAddress}
+                              />
+                              <SummaryRow label="Email" value={d.email} />
+                            </>
+                          )}
+
+                          {/* CORPORATE DIRECTOR */}
+                          {d.type === "corporate" && (
+                            <>
+                              <SummaryRow
+                                label="Company Name"
+                                value={d.companyName}
+                              />
+                              <SummaryRow
+                                label="Jurisdiction"
+                                value={d.jurisdiction}
+                              />
+                              <SummaryRow
+                                label="Registration Number"
+                                value={d.registrationNumber}
+                              />
+                              <SummaryRow
+                                label="Registered Address"
+                                value={d.registeredAddress}
+                              />
+
+                              <SummaryRow
+                                label="Authorised Signatory Name"
+                                value={d.authorisedSignatoryName}
+                              />
+                              <SummaryRow
+                                label="Authorised Signatory Passport"
+                                value={d.authorisedSignatoryPassport}
+                              />
+                              <SummaryRow
+                                label="Authorised Signatory Address"
+                                value={d.authorisedSignatoryAddress}
+                              />
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* ================================
         SECTION 4 — DECLARATION & SIGNATURE
-       ================================ */}
+    ================================ */}
                 <div className="space-y-6 border rounded-lg p-6">
                   <h4 className="text-lg font-semibold">Declaration</h4>
 
                   <p className="text-sm text-muted-foreground leading-relaxed">
                     I hereby declare that the information provided in this Legal
-                    Entity Form is complete and accurate. I understand that this
+                    Entity Form is complete and accurate. I understand this
                     information is required under Panamanian Law 23 of 2015
-                    (“Know Your Client”) and that I must promptly notify the
-                    Resident Agent of any changes to this information. I affirm
-                    that no part of the assets or activities of the legal entity
-                    relate to illegal activity, money laundering, or financing
-                    of terrorism.
+                    (“Know Your Client”).
                   </p>
 
                   {/* Client Name */}

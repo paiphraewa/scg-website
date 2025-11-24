@@ -1,21 +1,21 @@
-import { auth } from '@/lib/auth'
-import { redirect } from 'next/navigation'
-import { prisma } from '@/lib/prisma'
-import { ClientRegisterForm } from '@/components/client-register-form'
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { ClientRegisterForm } from "@/components/client-register-form";
 
 export default async function ClientRegisterPage({
   searchParams,
 }: {
-  searchParams: { onboardingId?: string }
+  searchParams: { onboardingId?: string };
 }) {
-  const session = await auth()
+  const session = await auth();
 
   // Must be logged in
-  if (!session) redirect('/login?callbackUrl=/client-register')
+  if (!session) redirect("/login?callbackUrl=/client-register");
 
   // Must have onboardingId
-  const onboardingId = searchParams.onboardingId
-  if (!onboardingId) redirect('/incorporate/bvi')
+  const onboardingId = searchParams.onboardingId;
+  if (!onboardingId) redirect("/incorporate/bvi");
 
   // Fetch onboarding and related incorporation
   const onboarding = await prisma.clientOnboarding.findUnique({
@@ -25,13 +25,13 @@ export default async function ClientRegisterPage({
         select: { jurisdiction: true },
       },
     },
-  })
+  });
 
   // Extract jurisdiction
   const jurisdiction =
-    onboarding?.companyIncorporations?.[0]?.jurisdiction || 'BVI'
+    onboarding?.companyIncorporations?.[0]?.jurisdiction || "BVI";
 
-  const jurisdictionName = getJurisdictionName(jurisdiction)
+  const jurisdictionName = getJurisdictionName(jurisdiction);
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -41,22 +41,23 @@ export default async function ClientRegisterPage({
         </h1>
 
         <p className="text-muted-foreground">
-          Welcome back, {session.user?.email}! Complete client onboarding form below.
+          Welcome back, {session.user?.email}! Complete client onboarding form
+          below.
         </p>
       </div>
 
       <ClientRegisterForm jurisdiction={jurisdiction} />
     </div>
-  )
+  );
 }
 
 function getJurisdictionName(j: string): string {
   const map: Record<string, string> = {
-    BVI: 'British Virgin Islands (BVI)',
-    PANAMA: 'Panama',
-    SINGAPORE: 'Singapore',
-    HONGKONG: 'Hong Kong',
-    CAYMAN: 'Cayman Islands',
-  }
-  return map[j] || j
+    BVI: "British Virgin Islands (BVI)",
+    PANAMA: "Panama",
+    SINGAPORE: "Singapore",
+    HONGKONG: "Hong Kong",
+    CAYMAN: "Cayman Islands",
+  };
+  return map[j] || j;
 }

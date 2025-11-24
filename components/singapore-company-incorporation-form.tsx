@@ -452,22 +452,27 @@ export default function SingaporeCompanyIncorporationForm({
   // ---------------------------------------------------------
   // FINAL SUBMIT — goes to pricing after save
   // ---------------------------------------------------------
+  // FINAL SUBMIT — save all Singapore form 1 data then go to declaration
   async function submitFinal() {
     setStepError("");
 
     try {
-      // 1️⃣ Save company details
+      // 1️⃣ Save Company Details
       let res = await fetch(
         "/api/company-incorporation/singapore/company-details",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ onboardingId, jurisdiction, data: sg }),
+          body: JSON.stringify({
+            onboardingId,
+            jurisdiction,
+            data: sg,
+          }),
         }
       );
       if (!res.ok) throw new Error("Failed to save company details");
 
-      // 2️⃣ Save shareholders
+      // 2️⃣ Save Shareholders
       res = await fetch("/api/company-incorporation/singapore/shareholders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -479,7 +484,7 @@ export default function SingaporeCompanyIncorporationForm({
       });
       if (!res.ok) throw new Error("Failed to save shareholders");
 
-      // 3️⃣ Save directors
+      // 3️⃣ Save Directors
       res = await fetch("/api/company-incorporation/singapore/directors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -491,25 +496,10 @@ export default function SingaporeCompanyIncorporationForm({
       });
       if (!res.ok) throw new Error("Failed to save directors");
 
-      // 4️⃣ Generate pending order
-      const orderRes = await fetch("/api/incorporation/start-order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          onboardingId,
-          jurisdiction,
-          companyNames: {
-            firstPreference: sg.intendedName || "Singapore Company",
-            chosenEnding: "",
-          },
-        }),
-      });
-
-      const json = await orderRes.json();
-      if (!orderRes.ok) throw new Error(json.error || "Order error");
-
-      // 5️⃣ Redirect → pricing
-      router.push(json.pricingUrl);
+      // 4️⃣ Redirect to Declaration Form (NEW!)
+      router.push(
+        `/company-incorporation/singapore/declaration?onboardingId=${onboardingId}`
+      );
     } catch (err) {
       console.error(err);
       setStepError("Unexpected error — please try again.");

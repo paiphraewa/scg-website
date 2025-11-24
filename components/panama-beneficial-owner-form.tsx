@@ -1,3 +1,4 @@
+// components/panama-beneficial-owner-form.tsx
 "use client";
 
 import { useState, useRef } from "react";
@@ -7,15 +8,14 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useRouter, useSearchParams } from "next/navigation";
-import { countries } from "@/lib/countries";
+import { useRouter } from "next/navigation";
 import { useDebouncedEffect } from "@/hooks/useDebouncedEffect";
 
 const SummaryRow = ({ label, value }: { label: string; value: any }) => (
   <div className="flex justify-between text-sm">
     <span className="text-muted-foreground">{label}</span>
     <span className="font-medium text-right ml-4">
-      {value !== "" ? value : "—"}
+      {value !== "" && value !== undefined && value !== null ? value : "—"}
     </span>
   </div>
 );
@@ -27,22 +27,90 @@ const BO_STEPS = [
   { id: "review", title: "Review & Signature" },
 ] as const;
 
+type SourceOfFunds = {
+  salary: boolean;
+  businessIncome: boolean;
+  savings: boolean;
+  investmentIncome: boolean;
+  realEstateIncome: boolean;
+  cryptoTrading: boolean;
+  saleOfAssets: boolean;
+  inheritance: boolean;
+  dividends: boolean;
+  professionalFees: boolean;
+  loanProceeds: boolean;
+  trustDistribution: boolean;
+  ipoProceeds: boolean;
+  vcReturns: boolean;
+  cryptoMining: boolean;
+  insurancePayouts: boolean;
+  others: boolean;
+  othersDetail: string;
+};
+
+type BeneficialOwner = {
+  // Personal
+  fullName: string;
+  nationality: string;
+  email: string;
+  passportNumber: string;
+  dateOfBirth: string;
+  address: string;
+
+  // Financial
+  yearlyIncome: string;
+  netWorth: string;
+  sourceOfFunds: SourceOfFunds;
+  sourceOfWealth: string;
+
+  // PEP
+  isPEP: string; // "yes" | "no" | ""
+  pepDetails: string;
+
+  // Signature
+  signatureType: string; // "drawn" | "uploaded" | ""
+  signatureDataUrl: string;
+  signatureFileName: string;
+  signedAt: string;
+};
+
 type PanamaBeneficialOwnerFormProps = {
   onboardingId: string;
   jurisdiction: string;
-  requiresNomineeDirector: boolean;
+  requiresNomineeDirector: boolean; // kept for props shape, not used in this file
+};
+
+const initialSourceOfFunds: SourceOfFunds = {
+  salary: false,
+  businessIncome: false,
+  savings: false,
+  investmentIncome: false,
+  realEstateIncome: false,
+  cryptoTrading: false,
+  saleOfAssets: false,
+  inheritance: false,
+  dividends: false,
+  professionalFees: false,
+  loanProceeds: false,
+  trustDistribution: false,
+  ipoProceeds: false,
+  vcReturns: false,
+  cryptoMining: false,
+  insurancePayouts: false,
+  others: false,
+  othersDetail: "",
 };
 
 export default function PanamaBeneficialOwnerForm({
   onboardingId,
   jurisdiction,
-  requiresNomineeDirector,
 }: PanamaBeneficialOwnerFormProps) {
   const router = useRouter();
 
   const [stepError, setStepError] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
 
+  // Signature
   const [signatureMethod, setSignatureMethod] = useState<
     "draw" | "upload" | null
   >(null);
@@ -52,40 +120,38 @@ export default function PanamaBeneficialOwnerForm({
 
   const isFirst = currentStep === 0;
   const isLast = currentStep === BO_STEPS.length - 1;
-
   const progress = ((currentStep + 1) / BO_STEPS.length) * 100;
 
   // -------------------------------
-  // FORM STATE
+  // FORM STATE (single BO)
   // -------------------------------
-  const [bo, setBO] = useState({
-    // PERSONAL
+  const [bo, setBO] = useState<BeneficialOwner>({
     fullName: "",
     nationality: "",
     email: "",
     passportNumber: "",
     dateOfBirth: "",
     address: "",
-
-    // FINANCIAL
     yearlyIncome: "",
-    sourceOfFunds: "",
-    sourceOfWealth: "",
     netWorth: "",
-
-    // PEP
+    sourceOfFunds: { ...initialSourceOfFunds },
+    sourceOfWealth: "",
     isPEP: "",
     pepDetails: "",
-
-    // SIGNATURE
     signatureType: "",
     signatureDataUrl: "",
     signatureFileName: "",
-    signatureFile: null,
     signedAt: "",
   });
 
-  const handleChange = (e: any) => {
+  // -------------------------
+  // Generic change handler
+  // -------------------------
+  const handleChange = (
+    e:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setBO((prev) => ({ ...prev, [name]: value }));
   };
@@ -93,7 +159,7 @@ export default function PanamaBeneficialOwnerForm({
   // -----------------------
   // SIGNATURE HANDLING
   // -----------------------
-  const startDrawing = (e: any) => {
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -105,7 +171,7 @@ export default function PanamaBeneficialOwnerForm({
     setIsDrawing(true);
   };
 
-  const draw = (e: any) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -126,16 +192,17 @@ export default function PanamaBeneficialOwnerForm({
   };
 
   const saveDrawnSignature = () => {
+    if (!signaturePreview) return;
     setBO((prev) => ({
       ...prev,
       signatureDataUrl: signaturePreview,
       signatureType: "drawn",
-      signedAt: new Date().toISOString(),
+      signedAt: prev.signedAt || new Date().toISOString(),
     }));
     setSignatureMethod(null);
   };
 
-  const uploadSignature = (e: any) => {
+  const uploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -152,7 +219,8 @@ export default function PanamaBeneficialOwnerForm({
         ...prev,
         signatureDataUrl: url,
         signatureType: "uploaded",
-        signedAt: new Date().toISOString(),
+        signatureFileName: file.name,
+        signedAt: prev.signedAt || new Date().toISOString(),
       }));
     };
 
@@ -166,6 +234,7 @@ export default function PanamaBeneficialOwnerForm({
       ...prev,
       signatureType: "",
       signatureDataUrl: "",
+      signatureFileName: "",
       signedAt: "",
     }));
     setSignatureMethod(null);
@@ -177,7 +246,10 @@ export default function PanamaBeneficialOwnerForm({
   const validateStep = () => {
     setStepError("");
 
-    if (BO_STEPS[currentStep].id === "personal") {
+    const stepId = BO_STEPS[currentStep].id;
+
+    // STEP 1: Personal
+    if (stepId === "personal") {
       if (!bo.fullName.trim()) return false;
       if (!bo.nationality.trim()) return false;
       if (!bo.email.trim()) return false;
@@ -186,22 +258,30 @@ export default function PanamaBeneficialOwnerForm({
       if (!bo.address.trim()) return false;
     }
 
-    if (BO_STEPS[currentStep].id === "financial") {
+    // STEP 2: Financial
+    if (stepId === "financial") {
       if (!bo.yearlyIncome.trim()) return false;
-      if (!bo.sourceOfFunds.trim()) return false;
-      if (!bo.sourceOfWealth.trim()) return false;
       if (!bo.netWorth.trim()) return false;
+      if (!bo.sourceOfWealth.trim()) return false;
+
+      const { othersDetail, ...flags } = bo.sourceOfFunds;
+      const hasAnySource = Object.values(flags).some(Boolean);
+      if (!hasAnySource) return false;
+
+      if (bo.sourceOfFunds.others && !othersDetail.trim()) return false;
     }
 
-    if (BO_STEPS[currentStep].id === "pep") {
+    // STEP 3: PEP
+    if (stepId === "pep") {
       if (!bo.isPEP) return false;
       if (bo.isPEP === "yes" && !bo.pepDetails.trim()) return false;
     }
 
-    if (BO_STEPS[currentStep].id === "review") {
+    // STEP 4: Review & Signature
+    if (stepId === "review") {
       if (!bo.signatureType) return false;
       if (!bo.signatureDataUrl) return false;
-      return true; // <-- REQUIRED
+      return true;
     }
 
     return true;
@@ -213,13 +293,12 @@ export default function PanamaBeneficialOwnerForm({
       return;
     }
 
-    // If not last → just continue
     if (!isLast) {
       setCurrentStep((s) => s + 1);
       return;
     }
 
-    // If last step (review) → submit
+    // last step -> submit
     handleFinalSubmit();
   };
 
@@ -228,52 +307,65 @@ export default function PanamaBeneficialOwnerForm({
   };
 
   // -----------------------------------
-  // FINAL SUBMIT → Form 3
+  // FINAL SUBMIT → Pricing
   // -----------------------------------
   const handleFinalSubmit = async () => {
     try {
-      const payload = {
-        onboardingId,
-        formType: "panama-beneficial-owner",
-        data: bo,
-      };
+      setStepError("");
 
-      const res = await fetch(
+      // 1️⃣ SAVE BENEFICIAL OWNER DATA
+      const saveRes = await fetch(
         "/api/company-incorporation/panama/beneficial-owner",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({
+            onboardingId,
+            jurisdiction,
+            data: bo,
+          }),
         }
       );
 
-      if (!res.ok) {
-        setStepError("Failed to submit. Try again.");
+      if (!saveRes.ok) {
+        setStepError("Failed to submit. Please try again.");
         return;
       }
 
-      // ⭐ CONDITIONAL FLOW:
-      if (requiresNomineeDirector) {
-        // Nominee director used → skip Form 3 → Pricing
-        router.push(
-          `/pricing?onboardingId=${onboardingId}&jurisdiction=${jurisdiction}`
-        );
-      } else {
-        // No nominee → must fill Director Form 3
-        router.push(
-          `/company-incorporation/panama/board-of-directors?onboardingId=${onboardingId}&jurisdiction=${jurisdiction}`
-        );
+      // 2️⃣ CREATE / FETCH PENDING ORDER
+      const orderRes = await fetch("/api/incorporation/start-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          onboardingId,
+          jurisdiction,
+          companyNames: {
+            firstPreference: bo.fullName || "Panama Company",
+          },
+        }),
+      });
+
+      const json = await orderRes.json();
+
+      if (!orderRes.ok) {
+        console.error("[order error]", json);
+        setStepError(json.error || "Order creation failed.");
+        return;
       }
+
+      // 3️⃣ REDIRECT TO THE SERVER-GENERATED URL
+      router.push(json.pricingUrl);
     } catch (err) {
       console.error(err);
       setStepError("Unexpected error occurred.");
     }
   };
 
+  // -----------------------------------
+  // Autosave (debounced)
+  // -----------------------------------
   useDebouncedEffect(
     () => {
-      // Skip autosave when running locally
-      if (process.env.NODE_ENV !== "production") return;
       if (!onboardingId) return;
 
       fetch("/api/company-incorporation/panama/beneficial-owner", {
@@ -282,13 +374,63 @@ export default function PanamaBeneficialOwnerForm({
         body: JSON.stringify({
           onboardingId,
           formType: "panama-beneficial-owner",
-          data: bo, // <— full beneficial owner data
+          data: bo,
         }),
       });
     },
     [bo],
     800
   );
+
+  // Helper to render Source of Funds summary
+  const sourceOfFundsSummary = () => {
+    const labels: { key: keyof SourceOfFunds; label: string }[] = [
+      { key: "salary", label: "Salary / Employment Income" },
+      { key: "businessIncome", label: "Business Income / Company Profits" },
+      { key: "savings", label: "Savings Accumulated Over Time" },
+      { key: "investmentIncome", label: "Investment Income" },
+      { key: "realEstateIncome", label: "Real Estate Income" },
+      { key: "cryptoTrading", label: "Crypto Trading & Investment Gains" },
+      { key: "saleOfAssets", label: "Sale of Assets" },
+      { key: "inheritance", label: "Inheritance / Family Gifts" },
+      { key: "dividends", label: "Dividends / Shareholding Income" },
+      {
+        key: "professionalFees",
+        label: "Professional Fees (Legal, Consulting, Medical)",
+      },
+      { key: "loanProceeds", label: "Loan Proceeds" },
+      { key: "trustDistribution", label: "Trust Distribution" },
+      { key: "ipoProceeds", label: "IPO / Private Placement Proceeds" },
+      { key: "vcReturns", label: "Venture Capital / Angel Investment Returns" },
+      { key: "cryptoMining", label: "Crypto Mining Income" },
+      {
+        key: "insurancePayouts",
+        label: "Insurance / Compensation Payouts",
+      },
+    ];
+
+    const active: string[] = [];
+    labels.forEach(({ key, label }) => {
+      if (bo.sourceOfFunds[key]) active.push(label);
+    });
+
+    if (bo.sourceOfFunds.others && bo.sourceOfFunds.othersDetail.trim()) {
+      active.push(`Others: ${bo.sourceOfFunds.othersDetail.trim()}`);
+    }
+
+    if (active.length === 0) return "—";
+    return active.join(", ");
+  };
+
+  function netWorthDisplay() {
+    const map = {
+      "<100k": "Less than $100,000",
+      "100-200k": "$100,000 – $200,000",
+      "200-500k": "$200,000 – $500,000",
+      ">500k": "More than $500,000",
+    };
+    return map[bo.netWorth] || bo.netWorth;
+  }
 
   // -------------------------------
   // UI OUTPUT
@@ -340,7 +482,7 @@ export default function PanamaBeneficialOwnerForm({
 
           {/* STEP CONTENT */}
           <div className="border rounded-md p-4 space-y-6 mb-6">
-            {/* ---------------- STEP 1: PERSONAL INFO ---------------- */}
+            {/* STEP 1: PERSONAL */}
             {BO_STEPS[currentStep].id === "personal" && (
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold">
@@ -406,38 +548,130 @@ export default function PanamaBeneficialOwnerForm({
                     value={bo.address}
                     onChange={handleChange}
                     rows={3}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
                 </div>
               </div>
             )}
 
-            {/* ---------------- STEP 2: FINANCIAL ---------------- */}
+            {/* STEP 2: FINANCIAL */}
             {BO_STEPS[currentStep].id === "financial" && (
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold">2. Financial Profile</h3>
 
-                <div className="space-y-2">
+                {/* Yearly Income */}
+                <div className="space-y-1">
                   <Label>Yearly Income *</Label>
-                  <Input
-                    name="yearlyIncome"
+                  <select
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                     value={bo.yearlyIncome}
-                    onChange={handleChange}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
+                    onChange={(e) =>
+                      setBO((prev) => ({
+                        ...prev,
+                        yearlyIncome: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select</option>
+                    <option value="<100k">Less than 100,000</option>
+                    <option value="100-200k">100,000 - 200,000</option>
+                    <option value="200-500k">200,000 - 500,000</option>
+                    <option value=">500k">More than 500,000</option>
+                  </select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Source of Funds *</Label>
-                  <textarea
-                    name="sourceOfFunds"
-                    value={bo.sourceOfFunds}
-                    onChange={handleChange}
-                    rows={3}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
+                {/* Source of Funds */}
+                <div className="space-y-3 mt-4">
+                  <Label className="font-medium">Source of Funds *</Label>
+
+                  <div className="grid grid-cols-1 gap-2 text-sm">
+                    {[
+                      ["salary", "Salary / Employment Income"],
+                      ["businessIncome", "Business Income / Company Profits"],
+                      ["savings", "Savings Accumulated Over Time"],
+                      ["investmentIncome", "Investment Income"],
+                      ["realEstateIncome", "Real Estate Income"],
+                      ["cryptoTrading", "Crypto Trading & Investment Gains"],
+                      ["saleOfAssets", "Sale of Assets"],
+                      ["inheritance", "Inheritance / Family Gifts"],
+                      ["dividends", "Dividends / Shareholding Income"],
+                      [
+                        "professionalFees",
+                        "Professional Fees (Legal, Consulting, Medical)",
+                      ],
+                      ["loanProceeds", "Loan Proceeds"],
+                      ["trustDistribution", "Trust Distribution"],
+                      ["ipoProceeds", "IPO / Private Placement Proceeds"],
+                      [
+                        "vcReturns",
+                        "Venture Capital / Angel Investment Returns",
+                      ],
+                      ["cryptoMining", "Crypto Mining Income"],
+                      ["insurancePayouts", "Insurance / Compensation Payouts"],
+                    ].map(([key, label]) => (
+                      <label key={key} className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={
+                            bo.sourceOfFunds[
+                              key as keyof SourceOfFunds
+                            ] as boolean
+                          }
+                          onChange={(e) =>
+                            setBO((prev) => ({
+                              ...prev,
+                              sourceOfFunds: {
+                                ...prev.sourceOfFunds,
+                                [key]: e.target.checked,
+                              },
+                            }))
+                          }
+                        />
+                        {label}
+                      </label>
+                    ))}
+
+                    {/* Others */}
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={bo.sourceOfFunds.others}
+                        onChange={(e) =>
+                          setBO((prev) => ({
+                            ...prev,
+                            sourceOfFunds: {
+                              ...prev.sourceOfFunds,
+                              others: e.target.checked,
+                              othersDetail: e.target.checked
+                                ? prev.sourceOfFunds.othersDetail
+                                : "",
+                            },
+                          }))
+                        }
+                      />
+                      Others
+                    </label>
+
+                    {bo.sourceOfFunds.others && (
+                      <Textarea
+                        className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+                        placeholder="Please specify"
+                        value={bo.sourceOfFunds.othersDetail}
+                        onChange={(e) =>
+                          setBO((prev) => ({
+                            ...prev,
+                            sourceOfFunds: {
+                              ...prev.sourceOfFunds,
+                              othersDetail: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    )}
+                  </div>
                 </div>
 
+                {/* Source of Wealth */}
                 <div className="space-y-2">
                   <Label>Source of Wealth *</Label>
                   <textarea
@@ -445,23 +679,34 @@ export default function PanamaBeneficialOwnerForm({
                     value={bo.sourceOfWealth}
                     onChange={handleChange}
                     rows={3}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
                 </div>
 
-                <div className="space-y-2">
+                {/* Net Worth */}
+                <div className="space-y-1">
                   <Label>Estimated Net Worth *</Label>
-                  <Input
-                    name="netWorth"
+                  <select
+                    className="w-full border rounded-md px-3 py-2 text-sm bg-background"
                     value={bo.netWorth}
-                    onChange={handleChange}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
+                    onChange={(e) =>
+                      setBO((prev) => ({
+                        ...prev,
+                        netWorth: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select</option>
+                    <option value="<100k">Less than 100,000</option>
+                    <option value="100-200k">100,000 - 200,000</option>
+                    <option value="200-500k">200,000 - 500,000</option>
+                    <option value=">500k">More than 500,000</option>
+                  </select>
                 </div>
               </div>
             )}
 
-            {/* ---------------- STEP 3: PEP ---------------- */}
+            {/* STEP 3: PEP */}
             {BO_STEPS[currentStep].id === "pep" && (
               <div className="space-y-6">
                 <h3 className="text-lg font-semibold">3. PEP Questionnaire</h3>
@@ -501,21 +746,21 @@ export default function PanamaBeneficialOwnerForm({
                       rows={6}
                       value={bo.pepDetails}
                       onChange={handleChange}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     />
                   </div>
                 )}
               </div>
             )}
 
-            {/* ---------------- STEP 4: REVIEW ---------------- */}
+            {/* STEP 4: REVIEW */}
             {BO_STEPS[currentStep].id === "review" && (
               <div className="space-y-8">
                 <h3 className="text-lg font-semibold">Review & Signature</h3>
 
-                {/* SUMMARY – BVI-style grid */}
+                {/* SUMMARY */}
                 <div className="space-y-6">
-                  {/* Row 1: Personal */}
+                  {/* Personal */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
                       <h4 className="font-medium">Personal Details</h4>
@@ -541,13 +786,13 @@ export default function PanamaBeneficialOwnerForm({
                     </div>
                   </div>
 
-                  {/* Row 2: Financial */}
+                  {/* Financial */}
                   <div className="space-y-3">
                     <h4 className="font-medium">Financial Profile</h4>
                     <SummaryRow label="Yearly Income" value={bo.yearlyIncome} />
                     <SummaryRow
                       label="Source of Funds"
-                      value={bo.sourceOfFunds}
+                      value={sourceOfFundsSummary()}
                     />
                     <SummaryRow
                       label="Source of Wealth"
@@ -555,11 +800,11 @@ export default function PanamaBeneficialOwnerForm({
                     />
                     <SummaryRow
                       label="Estimated Net Worth"
-                      value={bo.netWorth}
+                      value={netWorthDisplay()}
                     />
                   </div>
 
-                  {/* Row 3: PEP */}
+                  {/* PEP */}
                   <div className="space-y-3">
                     <h4 className="font-medium">PEP Questionnaire</h4>
                     <SummaryRow
@@ -572,7 +817,7 @@ export default function PanamaBeneficialOwnerForm({
                   </div>
                 </div>
 
-                {/* SIGNATURE – identical layout to Form 1 */}
+                {/* SIGNATURE */}
                 <div className="space-y-6 border rounded-lg p-6 mt-4">
                   <h4 className="text-lg font-semibold">Signature</h4>
 
@@ -586,7 +831,7 @@ export default function PanamaBeneficialOwnerForm({
                       >
                         <span className="font-medium">Draw Signature</span>
                         <p className="text-sm text-muted-foreground">
-                          Use your mouse or trackpad to draw your signature
+                          Use your mouse or trackpad
                         </p>
                       </button>
 
@@ -603,7 +848,7 @@ export default function PanamaBeneficialOwnerForm({
                     </div>
                   )}
 
-                  {/* DRAW SIGNATURE */}
+                  {/* Draw signature */}
                   {signatureMethod === "draw" && !bo.signatureType && (
                     <div className="border rounded-lg p-4 space-y-4">
                       <div className="flex justify-between items-center">
@@ -655,7 +900,7 @@ export default function PanamaBeneficialOwnerForm({
                     </div>
                   )}
 
-                  {/* UPLOAD SIGNATURE */}
+                  {/* Upload signature */}
                   {signatureMethod === "upload" && !bo.signatureType && (
                     <div className="border rounded-lg p-4 space-y-4">
                       <Label>Upload your signature file</Label>
@@ -753,9 +998,7 @@ export default function PanamaBeneficialOwnerForm({
             {!isLast ? (
               <Button onClick={goNext}>Next</Button>
             ) : (
-              <Button onClick={handleFinalSubmit}>
-                Submit Beneficial Owner Form
-              </Button>
+              <Button onClick={handleFinalSubmit}>Continue to Payment</Button>
             )}
           </div>
         </CardContent>
