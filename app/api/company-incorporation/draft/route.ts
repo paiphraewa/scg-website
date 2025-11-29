@@ -86,6 +86,12 @@ export async function POST(request: NextRequest) {
       shareholders,
       directors,
 
+      // Hong Kong
+      companySecretary,
+      registeredOffice,
+      shareCapital,
+      businessNature,
+
       // ignore unknown keys safely
       ..._restIgnored
     } = formData
@@ -115,6 +121,12 @@ export async function POST(request: NextRequest) {
       shareholders: jsonOrArr(shareholders),
       requiresNomineeDirector: !!requiresNomineeDirector,
       directors: jsonOrArr(directors),
+
+      // Hong Kong
+      companySecretary: companySecretary ? jsonOrObj(companySecretary) : undefined,
+      registeredOffice: registeredOffice ? jsonOrObj(registeredOffice) : undefined,
+      shareCapital: shareCapital ? jsonOrObj(shareCapital) : undefined,
+      businessNature: businessNature ?? "",
 
       // Simple fields with fallbacks
       purposeOfCompany: purposeOfCompany ?? '',

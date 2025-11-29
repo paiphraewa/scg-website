@@ -94,6 +94,51 @@ export default async function IncorporationPage({
     redirect("/error");
   }
 
+    // ✅ HONG KONG → lookup or start → go to HK form
+  if (j === "hongkong") {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+
+    // Step 1 — lookup existing draft
+    try {
+      const lookupRes = await fetch(
+        `${baseUrl}/api/incorporation/lookup?jurisdiction=hongkong`,
+        { cache: "no-store" }
+      );
+
+      if (lookupRes.ok) {
+        const info = await lookupRes.json();
+
+        if (info.found && info.onboardingId && info.status === "draft") {
+          redirect(
+            `/company-incorporation/hongkong?onboardingId=${info.onboardingId}&jurisdiction=hongkong`
+          );
+        }
+      }
+    } catch (err) {
+      console.error("Hong Kong lookup error:", err);
+    }
+
+    // Step 2 — start new onboarding
+    try {
+      const startRes = await fetch(
+        `${baseUrl}/api/incorporation/start?jurisdiction=hongkong`,
+        { method: "POST", cache: "no-store" }
+      );
+
+      const startData = await startRes.json();
+
+      if (startData?.onboardingId) {
+        redirect(
+          `/company-incorporation/hongkong?onboardingId=${startData.onboardingId}&jurisdiction=hongkong`
+        );
+      }
+    } catch (err) {
+      console.error("Hong Kong start error:", err);
+    }
+
+    redirect("/error");
+  }
+
   // ✅ Old flow for others
   const jurisdictionName = getJurisdictionName(j);
 

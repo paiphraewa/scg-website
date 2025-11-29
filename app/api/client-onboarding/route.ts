@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
           id: record.id, // onboardingId
           ...record,
         },
+        redirect: `/success?onboardingId=${record.id}`, 
       },
       { status: onboardingId ? 200 : 201 }
     )

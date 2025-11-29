@@ -157,6 +157,13 @@ model CompanyIncorporation {
   complexStructureNotes String?
 
   // ============================================
+  // HONG KONG FIELDS
+  // ============================================
+  companySecretary Json?
+  registeredOffice Json?
+  shareCapital     Json?
+
+  // ============================================
   // SIGNATURE METADATA (used across all jurisdictions)
   // ============================================
   signature          String?

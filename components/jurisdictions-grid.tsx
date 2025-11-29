@@ -265,6 +265,59 @@ export function JurisdictionsGrid() {
     }
   }
 
+  const startHongKongCompany = async () => {
+    const slug = "hongkong";
+
+    // 1) If not logged in → login
+    if (!session) {
+      const callbackUrl = `/incorporate/${slug}`;
+      router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+      return;
+    }
+
+    // 2) Attempt to load existing draft (if user previously started HK)
+    try {
+      const res = await fetch(
+        `/api/incorporation/lookup?jurisdiction=hongkong`,
+        { cache: "no-store" }
+      );
+
+      if (res.ok) {
+        const info = await res.json();
+
+        if (info.found && info.status === "draft" && info.onboardingId) {
+          router.push(
+            `/company-incorporation/hongkong?onboardingId=${info.onboardingId}&jurisdiction=hongkong`
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("HK lookup error:", err);
+    }
+
+    // 3) No draft → start fresh onboarding
+    try {
+      const startRes = await fetch(
+        `/api/incorporation/start?jurisdiction=${slug}`,
+        { method: "POST" }
+      );
+
+      const data = await startRes.json();
+
+      if (data?.onboardingId) {
+        router.push(
+          `/company-incorporation/hongkong?onboardingId=${data.onboardingId}&jurisdiction=hongkong`
+        );
+        return;
+      }
+    } catch (err) {
+      console.error("HK start error:", err);
+    }
+
+    router.push(`/error`);
+  };
+
   // MAIN HANDLER
   const handleStartCompany = async (jurisdictionCode: string) => {
     if (status === "loading") return;
@@ -281,6 +334,10 @@ export function JurisdictionsGrid() {
 
     if (slug === "cayman") {
       return startCaymanCompany();
+    }
+
+    if (slug === "hongkong") {
+      return startHongKongCompany();
     }
 
     // Non-Panama jurisdictions:
